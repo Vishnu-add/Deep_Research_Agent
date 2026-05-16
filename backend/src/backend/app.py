@@ -4,6 +4,25 @@ from fastapi import FastAPI
 from src.backend.utils.logger import setup_logger
 from src.backend.agent import DeepResearchAgent
 from src.backend.models.schemas import QuestionRequest, AnswerResponse, EvaluationRequest, EvaluationResult
+from fastapi.responses import StreamingResponse
+from langgraph.config import get_stream_writer
+from langgraph.stream import ProtocolEvent, StreamChannel, StreamTransformer
+
+# 1. Custom transformer to collect events
+class CustomTransformer(StreamTransformer):
+    required_stream_modes = ("custom",)
+
+    def __init__(self, scope: tuple[str, ...] = ()) -> None:
+        super().__init__(scope)
+        self.log = StreamChannel()
+
+    def init(self) -> dict:
+        return {"custom": self.log}
+
+    def process(self, event: ProtocolEvent) -> bool:
+        if event["method"] == "custom":
+            self.log.push(event["params"]["data"])
+        return True
 
 logger = setup_logger(__name__)
 
@@ -41,6 +60,29 @@ async def ask_question(request: QuestionRequest):
     except Exception as e:
         logger.error(f"Failed to answer question: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/stream")
+async def stream_data(request: QuestionRequest):
+    config = {"configurable": {"thread_id": request.session_id}}
+    async def generate():
+        # Start streaming
+        stream = await deep_research_agent.workflow.astream_events(
+            {"query": request.question, "max_iterations": request.max_iterations},
+            version="v3", 
+            config=config,
+            transformers=[CustomTransformer]
+        )
+        
+        # Stream custom events as they happen
+        async for item in stream.extensions["custom"]:
+            yield f"data: {item}\n\n"
+            
+        # Await final output
+        final = await stream.output
+        yield f"data: final:{final}\n\n"
+        
+    return StreamingResponse(generate(), media_type="text/event-stream")
+
 
 
 @app.on_event("shutdown")

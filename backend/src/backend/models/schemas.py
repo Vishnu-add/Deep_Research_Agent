@@ -4,6 +4,7 @@ from typing import List, Dict, Any, Optional
 class QuestionRequest(BaseModel):
     question: str
     max_iterations: Optional[int] = 3
+    session_id: Optional[str] = "1"
 
 class Evidence(BaseModel):
     title: str

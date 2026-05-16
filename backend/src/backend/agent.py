@@ -26,6 +26,7 @@ from src.backend.tools import (
     REFLECTION_TOOL,
 )
 from src.backend.state import ResearchState
+from langgraph.config import get_stream_writer
 
 
 MODEL_NAME = "qwen3:8b"
@@ -46,13 +47,16 @@ class DeepResearchAgent:
             model=MODEL_NAME,
             temperature=TEMPERATURE
         )
+        # self.llm = 
 
         self.search_tool = DuckDuckGoSearchResults(
             num_results=MAX_SEARCH_RESULTS
         )
+        self.writer = None
         self.workflow = self._build_workflow()
         self.workflow.get_graph().draw_mermaid_png(output_file_path="graph.png")
         logger.info("Workflow graph visualization saved as graph.png")
+
     
     
     def _build_workflow(self) -> StateGraph:
@@ -142,16 +146,24 @@ class DeepResearchAgent:
         """
         Takes the initial query and generates a step-by-step research plan.
         """
+        if self.writer is None:
+            logger.warning("Stream writer not initialized. Initializing now.")
+            self.writer = get_stream_writer()
+        self.writer({"status": "Planning the research approach..."})
+        logger.info("Planning the research approach...")
         logger.info(f"=== PLANNING NODE ===")
-        logger.info(f"Current state:{state}")
+        #logger.info(f"Current state:{state}")
         messages = [
             SystemMessage(content=PLANNER_PROMPT),
             HumanMessage(content=state["query"]),
         ]
 
+        self.writer({"status": "Invoking the planner agent..."})
+        logger.info(f"Invoking planner agent")
         response = self.llm.invoke(messages)
 
-        logger.info(f"Planning response:{response}")
+        # logger.info(f"Planning response:{response}")
+        self.writer({"status": "Planning completed."})
 
         state["plan"] = response.content
         state["messages"] = messages + [response]
@@ -161,7 +173,7 @@ class DeepResearchAgent:
     def decomposer_node(self, state: ResearchState):
         """Takes the research plan and decomposes it into focused subqueries."""
         logger.info(f"=== DECOMPOSER NODE ===")
-        logger.info(f"Current state:{state}")
+        #logger.info(f"Current state:{state}")
 
         messages = [
             SystemMessage(content=DECOMPOSER_PROMPT),
@@ -174,15 +186,18 @@ class DeepResearchAgent:
 
         sub_queries = response.tool_calls[0].get("args", {}).get("subqueries", [])
 
+        self.writer({"status": "Decomposition completed."})
+
         return {
             "subqueries": sub_queries,
             "messages": response    
         }
 
     def search_node(self, state: ResearchState):
-
+        """Executes the search for each subquery and retrieves relevant sources."""
+        self.writer({"status": "Searching for information..."})
         logger.info(f"=== SEARCH NODE ===")
-        logger.info(f"Current state:{state}")
+        #logger.info(f"Current state:{state}")
 
         all_sources = []
 
@@ -223,7 +238,8 @@ class DeepResearchAgent:
         # Curretly validating all sources, but ideally we should only validate a subset to save costs
         # And validating one by one, but ideally we could batch them
         logger.info(f"=== VALIDATION NODE ===")
-        logger.info(f"Current state:{state}")
+        #logger.info(f"Current state:{state}")
+        self.writer({"status": "Validating retrieved sources..."})
 
 
         llm_tool = self.llm.bind_tools([SOURCE_VALIDATION_TOOL], tool_choice="required")
@@ -295,7 +311,8 @@ class DeepResearchAgent:
         """
 
         logger.info(f"=== REFLECTION NODE ===")
-        logger.info(f"Current state:{state}")
+        #logger.info(f"Current state:{state}")
+        self.writer({"status": "Reflecting on the research process..."})
 
         llm_tool = self.llm.bind_tools([REFLECTION_TOOL], tool_choice="required")
 
@@ -335,8 +352,8 @@ class DeepResearchAgent:
         {validated_sources}
         """
         logger.info(f"=== SYNTHESIS NODE ===")
-        logger.info(f"Current state:{state}")
-        
+        #logger.info(f"Current state:{state}")
+        self.writer({"status": "Synthesizing the final answer..."})
         messages = [
             SystemMessage(content=SYNTHESIS_PROMPT),
             HumanMessage(content=USER_PROMPT.format(query=state["query"], validated_sources=state["validated_sources"]))
@@ -345,7 +362,7 @@ class DeepResearchAgent:
 
         state["final_answer"] = response.content
 
-        
+        self.writer({"status": "Saving the final answer..."})
         filename = f"{OUT_DIR}/final_answer_{state['session_id']}.md"
 
         # Saving the final answer in the markdown file 
@@ -360,7 +377,7 @@ class DeepResearchAgent:
         "synthesis_node"
     ]:
         logger.info(f"=== ROUTER ===")
-        logger.info(f"Current state:{state}")
+        #logger.info(f"Current state:{state}")
 
         if state["loop_count"] >= MAX_LOOPS:
             return "synthesis_node"
@@ -388,5 +405,18 @@ class DeepResearchAgent:
 
         config = {"configurable": {"thread_id": session_id}}
         
-        result = await self.workflow.ainvoke(initial_state, config)
-        return result
+        # result = await self.workflow.ainvoke(initial_state, config)
+        for chunk in self.workflow.stream(
+            initial_state,
+            config,
+            stream_mode=["updates", "custom"],
+            version="v2"
+        ):
+            # logger.info(f"Received chunk: {chunk}")
+            if chunk["type"] == "updates":
+                for node_name, state in chunk["data"].items():
+                    logger.info(f"Node {node_name} updated: state")
+            elif chunk["type"] == "custom":
+                logger.info(f"Status: {chunk['data']['status']}")
+        # return result
+        
