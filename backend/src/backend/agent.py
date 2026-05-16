@@ -68,9 +68,15 @@ TEMPERATURE = 0
 MAX_SEARCH_RESULTS = 5
 MAX_LOOPS = 3
 RELEVANCE_THRESHOLD = 8
+OUTPUT_DIR = "outputs"
+os.makedirs(OUTPUT_DIR, exist_ok=True)
 OUT_DIR = "outputs/final_answers"
 os.makedirs(OUT_DIR, exist_ok=True)
 
+
+def save_json(path, data):
+    with open(path, "a", encoding="utf-8") as f:
+        json.dump(data, f, indent=4)
 
 
 logger = setup_logger(__name__)
@@ -183,6 +189,11 @@ class DeepResearchAgent:
         if self.writer is None:
             logger.warning("Stream writer not initialized. Initializing now.")
             self.writer = get_stream_writer()
+        
+        session_folder = f"{OUTPUT_DIR}/session_{state['session_id']}"
+        os.makedirs(session_folder, exist_ok=True)
+        state["session_folder"] = session_folder
+
         self.writer({"status": "Planning the research approach..."})
         logger.info("Planning the research approach...")
         logger.info(f"=== PLANNING NODE {state['loop_count']} === ")
@@ -198,6 +209,14 @@ class DeepResearchAgent:
 
         # logger.info(f"Planning response:{response}")
         self.writer({"status": "Planning completed."})
+        
+        session_folder = state["session_folder"]        
+
+        filename = f"{session_folder}/A5_planned_plan.json"
+        save_json(
+            filename,
+            {"plan": response.content}
+        )
 
         state["plan"] = response.content
         state["all_messages"] = state["all_messages"] + messages + [response]        
@@ -229,6 +248,14 @@ class DeepResearchAgent:
         sub_queries = response.tool_calls[0].get("args", {}).get("subqueries", [])
 
         self.writer({"status": "Decomposition completed."})
+
+        session_folder = state["session_folder"]        
+
+        filename = f"{session_folder}/A5_decomposed_subqueries.json"
+        save_json(
+            filename,
+            sub_queries
+        )
 
         return {
             "subqueries": state["subqueries"] + sub_queries,
@@ -265,10 +292,13 @@ class DeepResearchAgent:
 
         # state["sources"] = all_sources
 
-        # save_json(
-        #     "outputs/logs/A5_raw_sources.json",
-        #     all_sources
-        # )
+        session_folder = state["session_folder"]        
+
+        filename = f"{session_folder}/A5_raw_sources.json"
+        save_json(
+            filename,
+            all_sources
+        )
 
         return {
             "sources": state["sources"] + all_sources,
@@ -334,10 +364,13 @@ class DeepResearchAgent:
 
         # state["validated_sources"] = filtered_sources
 
-        # save_json(
-        #     "outputs/validation/A5_validation.json",
-        #     filtered_sources
-        # )
+        session_folder = state["session_folder"]        
+
+        filename = f"{session_folder}/A5_validation.json"
+        save_json(
+            filename,
+            filtered_sources
+        )
 
         return {
             "validated_sources": state["validated_sources"] + filtered_sources,
@@ -352,13 +385,42 @@ class DeepResearchAgent:
         #logger.info(f"Current state:{state}")
         self.writer({"status": "Reflecting on the research process..."})
 
+        if state["loop_count"] >= MAX_LOOPS:
+            logger.info(f"Maximum loop count reached. No further reflection.")
+            state["loop_count"] += 1
+            return state
+
         llm_tool = self.llm.bind_tools([REFLECTION_TOOL], tool_choice="required")
 
         messages = [
             SystemMessage(content=REFLECTION_PROMPT),
             HumanMessage(content=USER_REFLECTION_PROMPT.format(query=state["query"], plan=state["plan"], validated_sources=state["new_validated_sources"]))
         ]
-        response = llm_tool.invoke(messages)
+
+        response = None
+        for i in range(3):
+            response = llm_tool.invoke(messages)
+
+            tool_calls = response.tool_calls
+            response_content = response.content
+            # logger.info(f"Reflection response:{response.tool_calls}")
+            # logger.info(f"Reflection response content:{response.content}")
+
+            if tool_calls:
+                break
+            
+            if not tool_calls and not response_content:
+                logger.info(f"No reflection response received.")
+                # continue
+        if response is None or response.tool_calls is None or len(response.tool_calls) == 0:
+            logger.info(f"No reflection response received after multiple attempts.")
+            state["loop_count"] += 1
+            return state
+            # return Command(
+            #     name="no_reflection_response",
+            #     args={}
+            # )
+        # response = llm_tool.invoke(messages)
 
         # logger.info(f"Reflection response:{response.tool_calls}")
 
@@ -374,10 +436,13 @@ class DeepResearchAgent:
 
         state["all_messages"] = state["all_messages"] + messages + [response]
 
-        # save_json(
-        #     "outputs/reflection/A5_reflection.json",
-        #     parsed
-        # )
+        session_folder = state["session_folder"]        
+
+        filename = f"{session_folder}/A5_reflection.json"
+        save_json(
+            filename,
+            parsed
+        )
 
         return state
     
@@ -423,7 +488,7 @@ class DeepResearchAgent:
         if state["loop_count"] >= MAX_LOOPS+1:
             return "synthesis_node"
 
-        if state["reflection"]["info_needed"]:
+        if state["reflection"].get("info_needed", False):
             return "decomposer_node"
 
         return "synthesis_node"

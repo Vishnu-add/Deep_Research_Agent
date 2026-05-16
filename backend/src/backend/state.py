@@ -17,6 +17,7 @@ class ResearchState(TypedDict):
     final_answer: str
     loop_count: int
     session_id: str
+    session_folder: str
 
 # class ResearchState(TypedDict):
 #     question: str
