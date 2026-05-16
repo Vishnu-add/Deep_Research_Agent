@@ -25,7 +25,7 @@ SOURCE_VALIDATION_TOOL = {
     "type": "function",
     "function": {
         "name": "validate_source",
-        "description": "Validate the relevance of the source for the research question in terms of whether it provides useful information to answer the research question",
+        "description": "Validate the relevance and reliability of the sources for the research question in terms of whether it provides useful information to answer the research question",
         "parameters": {
             "type": "object",
             "properties": {
@@ -42,11 +42,11 @@ SOURCE_VALIDATION_TOOL = {
                                 "type": "integer",
                                 "minimum": 1,
                                 "maximum": 10,
-                                "description": "Relevance score from 1 to 10"
+                                "description": "Relevance and reliability score from 1 to 10"
                             },
                             "reason": {
                                 "type": "string",
-                                "description": "Reason for the relevance score"
+                                "description": "Reason for the relevance and reliability score"
                             }
                         },
                         "required": ["score", "reason"]

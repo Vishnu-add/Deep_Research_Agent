@@ -406,6 +406,8 @@ class DeepResearchAgent:
         config = {"configurable": {"thread_id": session_id}}
         
         # result = await self.workflow.ainvoke(initial_state, config)
+        # return result
+        
         for chunk in self.workflow.stream(
             initial_state,
             config,
@@ -418,5 +420,4 @@ class DeepResearchAgent:
                     logger.info(f"Node {node_name} updated: state")
             elif chunk["type"] == "custom":
                 logger.info(f"Status: {chunk['data']['status']}")
-        # return result
         
