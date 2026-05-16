@@ -28,6 +28,31 @@ from src.backend.tools import (
 from src.backend.state import ResearchState
 from langgraph.config import get_stream_writer
 
+from langfuse import get_client
+from langfuse.langchain import CallbackHandler
+import os
+
+os.environ["LANGFUSE_SECRET_KEY"] = LANGFUSE_SECRET_KEY
+os.environ["LANGFUSE_PUBLIC_KEY"] = LANGFUSE_PUBLIC_KEY
+os.environ["LANGFUSE_BASE_URL"] = LANGFUSE_BASE_URL
+
+# Initialize Langfuse client
+langfuse = get_client()
+
+# Initialize Langfuse CallbackHandler for Langchain (tracing)
+langfuse_handler = CallbackHandler()
+
+from langfuse.langchain import CallbackHandler
+from langfuse import observe
+# Initialize Langfuse CallbackHandler for Langchain (tracing)
+langfuse_handler = CallbackHandler()
+
+# Verify connection
+if langfuse.auth_check():
+    print("Langfuse client is authenticated and ready!")
+else:
+    print("Authentication failed. Please check your credentials and host.")
+
 
 MODEL_NAME = "qwen3:8b"
 TEMPERATURE = 0
@@ -403,21 +428,24 @@ class DeepResearchAgent:
             session_id=session_id
         )
 
-        config = {"configurable": {"thread_id": session_id}}
+        config = {
+            "configurable": {"thread_id": session_id},
+            "callbacks": [langfuse_handler],
+        }
         
-        # result = await self.workflow.ainvoke(initial_state, config)
-        # return result
-        
-        for chunk in self.workflow.stream(
-            initial_state,
-            config,
-            stream_mode=["updates", "custom"],
-            version="v2"
-        ):
-            # logger.info(f"Received chunk: {chunk}")
-            if chunk["type"] == "updates":
-                for node_name, state in chunk["data"].items():
-                    logger.info(f"Node {node_name} updated: state")
-            elif chunk["type"] == "custom":
-                logger.info(f"Status: {chunk['data']['status']}")
+        result = await self.workflow.ainvoke(initial_state, config)
+        return result
+
+        # for chunk in self.workflow.stream(
+        #     initial_state,
+        #     config,
+        #     stream_mode=["updates", "custom"],
+        #     version="v2"
+        # ):
+        #     # logger.info(f"Received chunk: {chunk}")
+        #     if chunk["type"] == "updates":
+        #         for node_name, state in chunk["data"].items():
+        #             logger.info(f"Node {node_name} updated: state")
+        #     elif chunk["type"] == "custom":
+        #         logger.info(f"Status: {chunk['data']['status']}")
         
