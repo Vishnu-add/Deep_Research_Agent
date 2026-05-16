@@ -8,8 +8,11 @@ class ResearchState(TypedDict):
     plan : str
     instructions: str
     subqueries: list
+    new_subqueries: list
     sources: list
+    new_sources: list
     validated_sources: list
+    new_validated_sources: list
     reflection: dict
     final_answer: str
     loop_count: int

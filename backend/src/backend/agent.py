@@ -15,13 +15,17 @@ from src.backend.prompts import (
     PLANNER_PROMPT,
     DECOMPOSER_PROMPT,
     USER_DECOMPOSER_PROMPT,
+    DECOMPOSER_PROMPT_ITER_2,
+    USER_DECOMPOSER_PROMPT_ITER_2,
     SOURCE_VALIDATION_PROMPT,
     USER_VALIDATION_PROMPT,
     REFLECTION_PROMPT,
+    USER_REFLECTION_PROMPT,
     SYNTHESIS_PROMPT
 )
 from src.backend.tools import (
     DECOMPOSER_TOOL,
+    DECOMPOSER_TOOL_ITER_2,
     SOURCE_VALIDATION_TOOL,
     REFLECTION_TOOL,
 )
@@ -31,6 +35,11 @@ from langgraph.config import get_stream_writer
 from langfuse import get_client
 from langfuse.langchain import CallbackHandler
 import os
+
+
+LANGFUSE_SECRET_KEY="sk-lf-f3310337-d8ec-4364-84ac-1668d59ba380"
+LANGFUSE_PUBLIC_KEY="pk-lf-2c8a83a3-a53f-44ea-a333-0730ecadc80b"
+LANGFUSE_BASE_URL="https://us.cloud.langfuse.com"
 
 os.environ["LANGFUSE_SECRET_KEY"] = LANGFUSE_SECRET_KEY
 os.environ["LANGFUSE_PUBLIC_KEY"] = LANGFUSE_PUBLIC_KEY
@@ -176,7 +185,7 @@ class DeepResearchAgent:
             self.writer = get_stream_writer()
         self.writer({"status": "Planning the research approach..."})
         logger.info("Planning the research approach...")
-        logger.info(f"=== PLANNING NODE ===")
+        logger.info(f"=== PLANNING NODE {state['loop_count']} === ")
         #logger.info(f"Current state:{state}")
         messages = [
             SystemMessage(content=PLANNER_PROMPT),
@@ -196,14 +205,23 @@ class DeepResearchAgent:
     
     def decomposer_node(self, state: ResearchState):
         """Takes the research plan and decomposes it into focused subqueries."""
-        logger.info(f"=== DECOMPOSER NODE ===")
+        logger.info(f"=== DECOMPOSER NODE {state['loop_count']} ===")
         #logger.info(f"Current state:{state}")
 
-        messages = [
-            SystemMessage(content=DECOMPOSER_PROMPT),
-            HumanMessage(content=USER_DECOMPOSER_PROMPT.format(plan=state["plan"])),
-        ]
-        llm_tool = self.llm.bind_tools([DECOMPOSER_TOOL], tool_choice="required")
+        if state["loop_count"] == 1:
+            logger.info(f"Using initial decomposition without reflection instructions.")
+            messages = [
+                SystemMessage(content=DECOMPOSER_PROMPT),
+                HumanMessage(content=USER_DECOMPOSER_PROMPT.format(plan=state["plan"])),
+            ]
+            llm_tool = self.llm.bind_tools([DECOMPOSER_TOOL], tool_choice="required")
+        else:
+            logger.info(f"Using instructions from reflection to guide decomposition: {state['instructions']}")
+            messages = [
+                SystemMessage(content=DECOMPOSER_PROMPT_ITER_2.format(instructions=state["instructions"])),
+                HumanMessage(content=USER_DECOMPOSER_PROMPT_ITER_2.format(plan=state["plan"], existing_subquestions=state["subqueries"])),
+            ]
+            llm_tool = self.llm.bind_tools([DECOMPOSER_TOOL_ITER_2], tool_choice="required")
         response = llm_tool.invoke(messages)
 
         # logger.info(f"Decomposition response:{response.tool_calls}")
@@ -213,21 +231,22 @@ class DeepResearchAgent:
         self.writer({"status": "Decomposition completed."})
 
         return {
-            "subqueries": sub_queries,
+            "subqueries": state["subqueries"] + sub_queries,
+            "new_subqueries": sub_queries,
             "all_messages": state["all_messages"] + messages + [response]
         }
 
     def search_node(self, state: ResearchState):
         """Executes the search for each subquery and retrieves relevant sources."""
         self.writer({"status": "Searching for information..."})
-        logger.info(f"=== SEARCH NODE ===")
+        logger.info(f"=== SEARCH NODE {state['loop_count']} ===")
         #logger.info(f"Current state:{state}")
 
         all_sources = []
 
         counter = 0
 
-        for q in state["subqueries"]:
+        for q in state["new_subqueries"]:
 
             try:
 
@@ -239,7 +258,7 @@ class DeepResearchAgent:
 
             all_sources.append({
                 "question": q,
-                "question_id": counter,
+                "question_id": f"state['loop_count']_{counter}",
                 "sources": results
             })
             counter += 1
@@ -252,7 +271,8 @@ class DeepResearchAgent:
         # )
 
         return {
-            "sources": all_sources
+            "sources": state["sources"] + all_sources,
+            "new_sources": all_sources,
         }
     
     
@@ -261,19 +281,19 @@ class DeepResearchAgent:
 
         # Curretly validating all sources, but ideally we should only validate a subset to save costs
         # And validating one by one, but ideally we could batch them
-        logger.info(f"=== VALIDATION NODE ===")
+        logger.info(f"=== VALIDATION NODE {state['loop_count']} ===")
         #logger.info(f"Current state:{state}")
         self.writer({"status": "Validating retrieved sources..."})
 
 
         llm_tool = self.llm.bind_tools([SOURCE_VALIDATION_TOOL], tool_choice="required")
 
-        if len(state["sources"]) > 5:
-            state["sources"] = state["sources"][:5]
+        if len(state["new_sources"]) > 5:
+            state["new_sources"] = state["new_sources"][:5]
 
         messages = [
             SystemMessage(content=SOURCE_VALIDATION_PROMPT),
-            HumanMessage(content=USER_VALIDATION_PROMPT.format(srcs=state["sources"], question=state["query"]))
+            HumanMessage(content=USER_VALIDATION_PROMPT.format(srcs=state["new_sources"], question=state["query"]))
         ]
         response = None
         for i in range(3):
@@ -293,7 +313,8 @@ class DeepResearchAgent:
         if response is None or response.tool_calls is None or len(response.tool_calls) == 0:
             logger.info(f"No response received after multiple attempts.")
             return {
-                "validated_sources": state["sources"]
+                "validated_sources": state["sources"],
+                "new_validated_sources": state["sources"]
             }
 
         parsed = response.tool_calls[0].get("args", {}).get("questions_with_scores", [])
@@ -319,21 +340,15 @@ class DeepResearchAgent:
         # )
 
         return {
-            "validated_sources": filtered_sources,
+            "validated_sources": state["validated_sources"] + filtered_sources,
+            "new_validated_sources": filtered_sources,
             "all_messages": state["all_messages"] + messages + [response]
         }
 
     def reflection_node(self, state: ResearchState):
-        USER_PROMPT = """
-        Query:
-        {query}
-        Research Plan to get the information needed to answer the query:
-        {plan}
-        Validated Sources:
-        {validated_sources}
-        """
+        
 
-        logger.info(f"=== REFLECTION NODE ===")
+        logger.info(f"=== REFLECTION NODE {state['loop_count']} ===")
         #logger.info(f"Current state:{state}")
         self.writer({"status": "Reflecting on the research process..."})
 
@@ -341,7 +356,7 @@ class DeepResearchAgent:
 
         messages = [
             SystemMessage(content=REFLECTION_PROMPT),
-            HumanMessage(content=USER_PROMPT.format(query=state["query"], plan=state["plan"], validated_sources=state["validated_sources"]))
+            HumanMessage(content=USER_REFLECTION_PROMPT.format(query=state["query"], plan=state["plan"], validated_sources=state["new_validated_sources"]))
         ]
         response = llm_tool.invoke(messages)
 
@@ -373,7 +388,7 @@ class DeepResearchAgent:
         Validated Sources:
         {validated_sources}
         """
-        logger.info(f"=== SYNTHESIS NODE ===")
+        logger.info(f"=== SYNTHESIS NODE {state['loop_count']} ===")
         #logger.info(f"Current state:{state}")
         self.writer({"status": "Synthesizing the final answer..."})
         messages = [
@@ -402,10 +417,10 @@ class DeepResearchAgent:
         "decomposer_node",
         "synthesis_node"
     ]:
-        logger.info(f"=== ROUTER ===")
+        logger.info(f"=== ROUTER {state['loop_count']} ===")
         #logger.info(f"Current state:{state}")
 
-        if state["loop_count"] >= MAX_LOOPS:
+        if state["loop_count"] >= MAX_LOOPS+1:
             return "synthesis_node"
 
         if state["reflection"]["info_needed"]:
