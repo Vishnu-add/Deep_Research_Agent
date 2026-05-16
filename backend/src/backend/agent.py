@@ -33,6 +33,8 @@ TEMPERATURE = 0
 MAX_SEARCH_RESULTS = 5
 MAX_LOOPS = 1
 RELEVANCE_THRESHOLD = 8
+OUT_DIR = "outputs/final_answers"
+os.makedirs(OUT_DIR, exist_ok=True)
 
 
 
@@ -223,7 +225,6 @@ class DeepResearchAgent:
         logger.info(f"=== VALIDATION NODE ===")
         logger.info(f"Current state:{state}")
 
-        validated = []
 
         llm_tool = self.llm.bind_tools([SOURCE_VALIDATION_TOOL], tool_choice="required")
 
@@ -249,22 +250,15 @@ class DeepResearchAgent:
             if not tool_calls and not response_content:
                 logger.info(f"No validation response received.")
                 # continue
-        if response is None:
+        if response is None or response.tool_calls is None or len(response.tool_calls) == 0:
             logger.info(f"No response received after multiple attempts.")
             return {
-                "validated_sources": []
+                "validated_sources": state["sources"]
             }
 
         parsed = response.tool_calls[0].get("args", {}).get("questions_with_scores", [])
 
         logger.info(f"Parsed validation:{parsed}")
-
-
-        # validated.append({
-        #     "question": state["query"],
-        #     "sources": src["sources"],
-        #     "validation": parsed
-        # })
 
         filtered_question_ids = []
         filtered_sources = []
@@ -351,14 +345,17 @@ class DeepResearchAgent:
 
         state["final_answer"] = response.content
 
+        
+        filename = f"{OUT_DIR}/final_answer_{state['session_id']}.md"
+
         # Saving the final answer in the markdown file 
-        with open("outputs/final_answer.md", "w") as f:
+        with open(filename, "w") as f:
             f.write(state["final_answer"])
 
         return state
 
         
-    def router(state: ResearchState) -> Literal[
+    def router(self, state: ResearchState) -> Literal[
         "decomposer_node",
         "synthesis_node"
     ]:
@@ -385,7 +382,8 @@ class DeepResearchAgent:
             validated_sources=[],
             reflection={},
             final_answer="",
-            loop_count=0
+            loop_count=0,
+            session_id=session_id
         )
 
         config = {"configurable": {"thread_id": session_id}}

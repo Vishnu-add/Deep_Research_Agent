@@ -12,6 +12,7 @@ class ResearchState(TypedDict):
     reflection: dict
     final_answer: str
     loop_count: int
+    session_id: str
 
 # class ResearchState(TypedDict):
 #     question: str
