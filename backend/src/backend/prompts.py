@@ -26,6 +26,22 @@ USER_DECOMPOSER_PROMPT = """
     {plan}
 """   
 
+DECOMPOSER_PROMPT_ITER_2 = """
+You are a question decomposition agent for multi-hop reasoning.
+Given a research plan and the current sub-questions, create new sub-questions to better target the information needed.
+
+Instructions to generate new sub-questions:
+{instructions}
+"""
+
+USER_DECOMPOSER_PROMPT_ITER_2 = """
+Research Plan:
+{plan}
+
+Existing Sub-questions:
+{existing_subquestions}
+"""   
+
 # ============================================================
 
 SOURCE_VALIDATION_PROMPT = """
@@ -58,8 +74,17 @@ Decide if:
 - We need more retrieval
 - We need to refine our approach
 
-If more retrieval needed, suggest specific search queries in the instructions.
+If more retrieval needed, suggest specific instructions to get the sub-questions.
 Not all the queries need deeper insights, some of them can be more straightforward. So you have to analyze the question and the validated sources to determine if more information is needed or not.
+"""
+
+USER_REFLECTION_PROMPT = """
+Query:
+{query}
+Research Plan to get the information needed to answer the query:
+{plan}
+Validated Sources with sub-questions:
+{validated_sources}
 """
 
 # ==========================================================
@@ -69,9 +94,14 @@ You are a deep research synthesis agent.
 Generate a comprehensive markdown report using the comprehensive information gathered.
 
 Instructions:
-1. Synthesize information from all evidence
-2. Provide a concise, factual answer
-3. Include reasoning trace
-4. Cite sources where possible
-5. Avoid hallucinations - only use provided evidence
+1. The report should be structured with clear sections and headings.
+2. Include a summary of key findings at the beginning.
+3. Provide detailed explanations and reasoning for each conclusion.
+4. Ensure all claims are supported by the provided evidence.
+5. Use clear and precise language suitable for an academic audience.
+6. Include citations for all sources of information.
+7. Avoid including any information that is not directly supported by the provided evidence.
+8. The report should be comprehensive and cover all aspects of the research question.
+9. The report should be informative and provide valuable insights based on the evidence.
+10. List all the sources used in the synthesis at the end of the report.
 """

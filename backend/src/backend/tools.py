@@ -19,6 +19,26 @@ DECOMPOSER_TOOL = {
         }
     }
 }
+DECOMPOSER_TOOL_ITER_2 = {
+    "type": "function",
+    "function": {
+        "name": "decompose_plan",
+        "description": "Decompose research plan into focused subqueries using instructions from reflection",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "subqueries": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "description": "The decomposed subqueries guided by reflection instructions"
+                }
+            },
+            "required": ["subqueries"]
+        }
+    }
+}
 
 
 SOURCE_VALIDATION_TOOL = {
@@ -64,7 +84,7 @@ REFLECTION_TOOL = {
     "type": "function",
     "function": {
         "name": "reflect_on_sources",
-        "description": "Reflect on the validated sources and determine if more research is needed. Provide instructions for the next iteration if needed.",
+        "description": "Reflect on the validated sources and determine if more research is needed. Provide instructions to generate new sub-questions for the next iteration if needed.",
         "parameters": {
             "type": "object",
             "properties": {
@@ -74,7 +94,7 @@ REFLECTION_TOOL = {
                 },
                 "instructions": {
                     "type": "string",
-                    "description": "Instructions for the next iteration if more information is needed"
+                    "description": "Instructions to generate new sub-questions for the next iteration if more information is needed"
                 }
             },
             "required": ["info_needed", "instructions"]
