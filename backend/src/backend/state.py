@@ -4,6 +4,7 @@ from typing import TypedDict, List, Dict, Any, Optional
 class ResearchState(TypedDict):
     query: str
     messages: list
+    all_messages: list
     plan : str
     instructions: str
     subqueries: list

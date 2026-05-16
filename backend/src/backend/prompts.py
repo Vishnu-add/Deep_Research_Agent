@@ -46,9 +46,9 @@ Sources: {srcs}
 # ===========================================================
 REFLECTION_PROMPT = """
 You are a reflection agent.
-Analyze the query and Validated Source,  determine if more information is needed.
+Analyze the query, research plan, and validated sources to determine if more information is needed and conduct the research again.
 Analyze:
-- Missing information
+- Whether the validated sources provide enough information to answer the research question
 - Weak coverage
 - Missing comparisons
 - Missing benchmarks

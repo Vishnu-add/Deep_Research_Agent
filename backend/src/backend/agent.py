@@ -57,7 +57,7 @@ else:
 MODEL_NAME = "qwen3:8b"
 TEMPERATURE = 0
 MAX_SEARCH_RESULTS = 5
-MAX_LOOPS = 1
+MAX_LOOPS = 3
 RELEVANCE_THRESHOLD = 8
 OUT_DIR = "outputs/final_answers"
 os.makedirs(OUT_DIR, exist_ok=True)
@@ -191,8 +191,7 @@ class DeepResearchAgent:
         self.writer({"status": "Planning completed."})
 
         state["plan"] = response.content
-        state["messages"] = messages + [response]
-        
+        state["all_messages"] = state["all_messages"] + messages + [response]        
         return state
     
     def decomposer_node(self, state: ResearchState):
@@ -207,7 +206,7 @@ class DeepResearchAgent:
         llm_tool = self.llm.bind_tools([DECOMPOSER_TOOL], tool_choice="required")
         response = llm_tool.invoke(messages)
 
-        logger.info(f"Decomposition response:{response.tool_calls}")
+        # logger.info(f"Decomposition response:{response.tool_calls}")
 
         sub_queries = response.tool_calls[0].get("args", {}).get("subqueries", [])
 
@@ -215,7 +214,7 @@ class DeepResearchAgent:
 
         return {
             "subqueries": sub_queries,
-            "messages": response    
+            "all_messages": state["all_messages"] + messages + [response]
         }
 
     def search_node(self, state: ResearchState):
@@ -282,8 +281,8 @@ class DeepResearchAgent:
 
             tool_calls = response.tool_calls
             response_content = response.content
-            logger.info(f"Validation response:{response.tool_calls}")
-            logger.info(f"Validation response content:{response.content}")
+            # logger.info(f"Validation response:{response.tool_calls}")
+            # logger.info(f"Validation response content:{response.content}")
 
             if tool_calls:
                 break
@@ -299,7 +298,7 @@ class DeepResearchAgent:
 
         parsed = response.tool_calls[0].get("args", {}).get("questions_with_scores", [])
 
-        logger.info(f"Parsed validation:{parsed}")
+        # logger.info(f"Parsed validation:{parsed}")
 
         filtered_question_ids = []
         filtered_sources = []
@@ -320,17 +319,16 @@ class DeepResearchAgent:
         # )
 
         return {
-            "validated_sources": filtered_sources
+            "validated_sources": filtered_sources,
+            "all_messages": state["all_messages"] + messages + [response]
         }
-    
-    
-
-
 
     def reflection_node(self, state: ResearchState):
         USER_PROMPT = """
         Query:
         {query}
+        Research Plan to get the information needed to answer the query:
+        {plan}
         Validated Sources:
         {validated_sources}
         """
@@ -343,11 +341,11 @@ class DeepResearchAgent:
 
         messages = [
             SystemMessage(content=REFLECTION_PROMPT),
-            HumanMessage(content=USER_PROMPT.format(query=state["query"], validated_sources=state["validated_sources"]))
+            HumanMessage(content=USER_PROMPT.format(query=state["query"], plan=state["plan"], validated_sources=state["validated_sources"]))
         ]
         response = llm_tool.invoke(messages)
 
-        logger.info(f"Reflection response:{response.tool_calls}")
+        # logger.info(f"Reflection response:{response.tool_calls}")
 
         parsed = response.tool_calls[0].get("args", {})
 
@@ -359,6 +357,8 @@ class DeepResearchAgent:
 
         state["loop_count"] += 1
 
+        state["all_messages"] = state["all_messages"] + messages + [response]
+
         # save_json(
         #     "outputs/reflection/A5_reflection.json",
         #     parsed
@@ -366,9 +366,6 @@ class DeepResearchAgent:
 
         return state
     
-    
-
-
     def synthesis_node(self,state: ResearchState):
         USER_PROMPT = """
         Query:
@@ -386,6 +383,10 @@ class DeepResearchAgent:
         response = self.llm.invoke(messages)
 
         state["final_answer"] = response.content
+
+        state["messages"] = state["messages"] + [response]
+
+        state["all_messages"] = state["all_messages"] + messages + [response]
 
         self.writer({"status": "Saving the final answer..."})
         filename = f"{OUT_DIR}/final_answer_{state['session_id']}.md"
@@ -416,7 +417,8 @@ class DeepResearchAgent:
         """Run the research workflow."""
         initial_state = ResearchState(
             query=question,
-            messages=[],
+            messages=[HumanMessage(content=question)],
+            all_messages=[HumanMessage(content=question)],
             plan="",
             instructions="",
             subqueries=[],
@@ -424,7 +426,7 @@ class DeepResearchAgent:
             validated_sources=[],
             reflection={},
             final_answer="",
-            loop_count=0,
+            loop_count=1,
             session_id=session_id
         )
 
