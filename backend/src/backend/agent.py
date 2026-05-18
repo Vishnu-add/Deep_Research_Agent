@@ -29,13 +29,21 @@ from src.backend.tools import (
     SOURCE_VALIDATION_TOOL,
     REFLECTION_TOOL,
 )
+from src.backend.stream_messages import (
+    PLANNER_MESSAGES,
+    DECOMPOSER_MESSAGES,
+    SEARCH_MESSAGES,
+    VALIDATION_MESSAGES,
+    REFLECTION_MESSAGES,
+    SYNTHESIS_MESSAGES
+)
 from src.backend.state import ResearchState
 from langgraph.config import get_stream_writer
 
 from langfuse import get_client
 from langfuse.langchain import CallbackHandler
 import os
-
+import random
 
 LANGFUSE_SECRET_KEY="sk-lf-f3310337-d8ec-4364-84ac-1668d59ba380"
 LANGFUSE_PUBLIC_KEY="pk-lf-2c8a83a3-a53f-44ea-a333-0730ecadc80b"
@@ -193,7 +201,8 @@ class DeepResearchAgent:
         os.makedirs(session_folder, exist_ok=True)
         state["session_folder"] = session_folder
 
-        self.writer({"status": "Planning the research approach..."})
+        # self.writer({"status": "Planning the research approach..."})
+        self.writer({"status": random.choice(PLANNER_MESSAGES)})
         logger.info("Planning the research approach...")
         logger.info(f"=== PLANNING NODE {state['loop_count']} === ")
         #logger.info(f"Current state:{state}")
@@ -202,7 +211,7 @@ class DeepResearchAgent:
             HumanMessage(content=state["query"]),
         ]
 
-        self.writer({"status": "Invoking the planner agent..."})
+        # self.writer({"status": "Invoking the planner agent..."})
         logger.info(f"Invoking planner agent")
         response = self.llm.invoke(messages)
 
@@ -226,7 +235,7 @@ class DeepResearchAgent:
         logger.info(f"=== DECOMPOSER NODE {state['loop_count']} ===")
         #logger.info(f"Current state:{state}")
         self.writer = get_stream_writer()
-        self.writer({"status": "Decomposing the research plan into subqueries..."})
+        self.writer({"status": random.choice(DECOMPOSER_MESSAGES)})
 
         if state["loop_count"] == 1:
             logger.info(f"Using initial decomposition without reflection instructions.")
@@ -267,7 +276,7 @@ class DeepResearchAgent:
     def search_node(self, state: ResearchState):
         """Executes the search for each subquery and retrieves relevant sources."""
         self.writer = get_stream_writer()
-        self.writer({"status": "Searching for information..."})
+        self.writer({"status": random.choice(SEARCH_MESSAGES)})
         logger.info(f"=== SEARCH NODE {state['loop_count']} ===")
         #logger.info(f"Current state:{state}")
 
@@ -316,7 +325,7 @@ class DeepResearchAgent:
         logger.info(f"=== VALIDATION NODE {state['loop_count']} ===")
         #logger.info(f"Current state:{state}")
         self.writer = get_stream_writer()
-        self.writer({"status": "Validating retrieved sources..."})
+        self.writer({"status": random.choice(VALIDATION_MESSAGES)})
 
 
         llm_tool = self.llm.bind_tools([SOURCE_VALIDATION_TOOL], tool_choice="required")
@@ -387,7 +396,7 @@ class DeepResearchAgent:
         logger.info(f"=== REFLECTION NODE {state['loop_count']} ===")
         #logger.info(f"Current state:{state}")
         self.writer = get_stream_writer()
-        self.writer({"status": "Reflecting on the research process..."})
+        self.writer({"status": random.choice(REFLECTION_MESSAGES)})
 
         if state["loop_count"] >= MAX_LOOPS:
             logger.info(f"Maximum loop count reached. No further reflection.")
@@ -460,7 +469,7 @@ class DeepResearchAgent:
         logger.info(f"=== SYNTHESIS NODE {state['loop_count']} ===")
         #logger.info(f"Current state:{state}")
         self.writer = get_stream_writer()
-        self.writer({"status": "Synthesizing the final answer..."})
+        self.writer({"status": random.choice(SYNTHESIS_MESSAGES)})
         messages = [
             SystemMessage(content=SYNTHESIS_PROMPT),
             HumanMessage(content=USER_PROMPT.format(query=state["query"], validated_sources=state["validated_sources"]))

@@ -77,7 +77,12 @@ async def get_stream(request: QuestionRequest):
         ):
             if chunk.get("type") == "custom":
                 logger.info(f"Streaming custom event: {chunk.get('data',{}).get('status', '')}")
-                yield chunk.get("data", {}).get("status")
+                # yield chunk.get("data", {}).get("status")
+                yield {
+                    "type": "thinking",
+                    "description": chunk.get("data", {}).get("status", "")
+                }
+                chunk.get("data", {}).get("status")
             elif chunk.get("type") == "messages":
                 # logger.info(f"Streaming messages")
                 chunk_data = chunk.get("data", ())
@@ -85,7 +90,11 @@ async def get_stream(request: QuestionRequest):
                 node_name = chunk_data[1].get("langgraph_node", "") if len(chunk_data) > 1 else ""
                 if node_name == "synthesis_node" and messages and messages.content:
                     # logger.info(f"Streaming message content: {chunk_data[0].content[:50]}...")
-                    yield chunk_data[0].content
+                    # yield chunk_data[0].content
+                    yield {
+                        "type": "final_answer",
+                        "description": chunk_data[0].content
+                    }
 
         logger.info("Streaming completed.")
     except Exception as e:
