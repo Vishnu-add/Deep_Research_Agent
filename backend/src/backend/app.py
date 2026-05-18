@@ -9,6 +9,20 @@ from langgraph.config import get_stream_writer
 from src.backend.state import ResearchState
 from langchain_core.messages import HumanMessage, SystemMessage
 
+from fastapi.middleware.cors import CORSMiddleware
+import os
+from langfuse import get_client
+from langfuse.langchain import CallbackHandler
+
+
+
+os.environ["LANGFUSE_SECRET_KEY"] = LANGFUSE_SECRET_KEY
+os.environ["LANGFUSE_PUBLIC_KEY"] = LANGFUSE_PUBLIC_KEY
+os.environ["LANGFUSE_BASE_URL"] = LANGFUSE_BASE_URL
+
+# Initialize Langfuse client
+langfuse = get_client()
+langfuse_handler = CallbackHandler()
 
 
 logger = setup_logger(__name__)
@@ -52,14 +66,17 @@ async def ask_question(request: QuestionRequest):
 @app.post("/get_stream")
 async def get_stream(request: QuestionRequest):
     try:
-        config = {"configurable": {"thread_id": request.session_id}}
+        config = {
+            "configurable": {"thread_id": request.session_id},
+            "callbacks": [langfuse_handler]
+        }
         initial_state = ResearchState(
             query=request.question,
             messages=[HumanMessage(content=request.question)],
             all_messages=[HumanMessage(content=request.question)],
             plan="",
             instructions="",
-            subqueries=[],
+            subqueries={},
             sources=[],
             validated_sources=[],
             reflection={},

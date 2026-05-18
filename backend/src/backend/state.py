@@ -1,5 +1,6 @@
 from typing import TypedDict, List, Dict, Any, Optional
-
+import operator
+from typing import Annotated
 
 class ResearchState(TypedDict):
     query: str
@@ -9,7 +10,7 @@ class ResearchState(TypedDict):
     instructions: str
     subqueries: list
     new_subqueries: list
-    sources: list
+    sources: dict
     new_sources: list
     validated_sources: list
     new_validated_sources: list
@@ -18,6 +19,24 @@ class ResearchState(TypedDict):
     loop_count: int
     session_id: str
     session_folder: str
+
+    next_node: Annotated[list, operator.add]
+    prev_node: Annotated[list, operator.add]
+    info_to_planner: Optional[Dict[str, Any]]
+    tools_needed: list
+    web_search_queries : list
+    scientific_search_queries : list
+    wiki_search_queries : list
+
+    web_search_all_sources : list
+    new_web_search_sources : list
+
+    scientific_search_all_sources : list
+    new_scientific_search_sources : list
+
+    wikipedia_search_all_sources : list
+    new_wikipedia_search_sources : list
+
 
 # class ResearchState(TypedDict):
 #     question: str
