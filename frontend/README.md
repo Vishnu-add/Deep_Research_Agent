@@ -1,109 +1,75 @@
-# Vue AI Chatbot Template
+# Deep Research Agent — Frontend
 
-[![Nuxt UI](https://img.shields.io/badge/Made%20with-Nuxt%20UI-00DC82?logo=nuxt&labelColor=020420)](https://ui.nuxt.com)
-[![Nitro](https://img.shields.io/badge/Built%20with-Nitro-ff637e?logo=nitro&labelColor=18181B)](https://nitro.build)
+Vue 3 chat UI for the FastAPI Deep Research Agent. Streams a LangGraph workflow's reasoning and final answer through an internal Nitro proxy.
 
-Full-featured AI Chatbot Vue application with authentication, chat history, collapsible sidebar, keyboard shortcuts, light & dark mode, command palette and more. Built using [Nuxt UI](https://ui.nuxt.com) components and integrated with [AI SDK](https://ai-sdk.dev) for a complete chat experience.
+## Stack
 
-- [Live demo](https://chat-vue-template.nuxt.dev/)
-- [Documentation](https://ui.nuxt.com/docs/getting-started/installation/vue)
+- Vue 3, Vite, Nuxt UI v4
+- Nitro server routes
+- AI SDK (`@ai-sdk/vue`)
+- Drizzle ORM + SQLite
+- Ollama for title generation and model listing
 
-<a href="https://chat-vue-template.nuxt.dev/" target="_blank">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://ui.nuxt.com/assets/templates/vue/chat-dark.png">
-    <source media="(prefers-color-scheme: light)" srcset="https://ui.nuxt.com/assets/templates/vue/chat-light.png">
-    <img alt="Vue AI Chatbot Template" src="https://ui.nuxt.com/assets/templates/vue/chat-light.png">
-  </picture>
-</a>
+## Prerequisites
 
-> The chat template for Nuxt is on https://github.com/nuxt-ui-templates/chat.
-
-## Features
-
-- ⚡️ **Streaming AI messages** powered by the [AI SDK](https://ai-sdk.dev) with thinking/reasoning support
-- 🤖 **Multiple model support** — Claude Haiku 4.5, Gemini 3 Flash and GPT-5 Nano via [Vercel AI Gateway](https://vercel.com/docs/ai-gateway)
-- 🔍 **Web search** with built-in provider tools (Anthropic, OpenAI)
-- 📊 **Charts and weather** tool calling with rich UI rendering
-- 🔐 **Authentication** via GitHub OAuth using [Nitro](https://nitro.build) server routes and httpOnly cookies
-- 💾 **Chat history persistence** using SQLite database ([Turso](https://turso.tech) in production) and [Drizzle ORM](https://orm.drizzle.team)
-- ✨ **Markdown rendering** with streaming code highlighting via [Comark](https://comark.dev)
-
-## Quick Start
-
-```bash
-npm create nuxt@latest -- --no-modules -t ui-vue/chat
-```
-
-## Deploy your own
-
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fnuxt-ui-templates%2Fchat-vue&repository-name=chat-vue&env=GITHUB_OAUTH_CLIENT_ID%2CGITHUB_OAUTH_CLIENT_SECRET%2CSESSION_SECRET&stores=%5B%7B%22type%22%3A%22integration%22%2C%22integrationSlug%22%3A%22tursocloud%22%2C%22productSlug%22%3A%22database%22%2C%22protocol%22%3A%22storage%22%7D%5D&demo-title=Vue+Chat+Template&demo-description=An+AI+chatbot+template+with+GitHub+authentication+and+persistent+chat+history+powered+by+Vercel+AI+SDK.&demo-url=https%3A%2F%2Fchat-vue-template.nuxt.dev&demo-image=https%3A%2F%2Fui.nuxt.com%2Fassets%2Ftemplates%2Fvue%2Fchat-dark.png)
+- Node.js 20+
+- Backend on `:8001` (see `../backend/README.md`)
+- Ollama with a chat model pulled:
+  ```bash
+  ollama pull qwen3:8b
+  ```
 
 ## Setup
 
-Make sure to install the dependencies:
-
 ```bash
-pnpm install
+pnpm install   # or: npm install / bun install
 ```
 
-Run database migrations:
+Migrations auto-run on dev start (`server/plugins/migrations.ts`).
 
-```bash
-pnpm db:migrate
+## Env
+
+Copy `.env.example` to `.env` and set:
+
+```
+SESSION_SECRET                 # 32+ chars
+GITHUB_OAUTH_CLIENT_ID
+GITHUB_OAUTH_CLIENT_SECRET
 ```
 
-> [!NOTE]
-> In production, configure your database connection. On Vercel, add the [Turso integration](https://vercel.com/integrations/turso) to automatically provision `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN`.
+Optional overrides:
 
-### AI Integration
-
-This template uses the [Vercel AI SDK](https://ai-sdk.dev/) for streaming AI responses with support for multiple providers through [Vercel AI Gateway](https://vercel.com/docs/ai-gateway). When deployed on Vercel, the AI Gateway is configured automatically.
-
-For local development, set your API key in `.env`:
-
-```bash
-AI_GATEWAY_API_KEY=<your-vercel-ai-gateway-api-key>
+```
+RESEARCH_BACKEND_URL=http://localhost:8001/get_stream
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_TITLE_MODEL=qwen3:8b
 ```
 
-> [!TIP]
-> With [Vercel AI Gateway](https://vercel.com/docs/ai-gateway), you don't need individual API keys for OpenAI, Anthropic, etc. It provides a unified API to access hundreds of models through a single endpoint with automatic load balancing, fallbacks, and spend monitoring.
+GitHub OAuth callback: `http://localhost:3000/auth/github`.
 
-### Authentication (Optional)
-
-This template uses [Nitro](https://nitro.build) server routes with httpOnly cookies for authentication with GitHub OAuth.
-
-To enable authentication, [create a GitHub OAuth application](https://github.com/settings/applications/new) and set:
+## Dev
 
 ```bash
-GITHUB_OAUTH_CLIENT_ID=<your-github-oauth-app-client-id>
-GITHUB_OAUTH_CLIENT_SECRET=<your-github-oauth-app-client-secret>
-SESSION_SECRET=<your-secret-minimum-32-characters>
+pnpm dev    # or: npm run dev / bun run dev
 ```
 
-## Development Server
-
-Start the development server on `http://localhost:3000`:
+Backend:
 
 ```bash
-pnpm dev
+cd ../backend && poetry run uvicorn src.backend.app:app --port 8001 --reload
 ```
 
-## Production
-
-Build the application for production:
+## Typecheck / lint
 
 ```bash
-pnpm build
+pnpm typecheck
+pnpm lint
 ```
 
-Locally preview production build:
+## Layout
 
-```bash
-pnpm preview
-```
-
-Check out the [deployment documentation](https://nitro.build/deploy) for more information.
-
-## Renovate integration
-
-Install [Renovate GitHub app](https://github.com/apps/renovate/installations/select_target) on your repository and you are good to go.
+- `server/routes/api/research/[id].post.ts` — proxy to FastAPI, maps `{thinking, final_answer}` events to AI SDK `reasoning-*` / `text-*` parts.
+- `server/routes/api/models.get.ts` — proxies Ollama `/api/tags`.
+- `src/components/chat/ReasoningSteps.vue` — emits `<step>` HTML.
+- `src/components/chat/ReasoningComark.ts` — `defineComarkComponent({ step: ReasoningStep })`.
+- `src/components/chat/RotatingIndicator.vue` — cycles gerunds while streaming.
