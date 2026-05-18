@@ -6,23 +6,10 @@ from src.backend.agent import DeepResearchAgent
 from src.backend.models.schemas import QuestionRequest, AnswerResponse, EvaluationRequest, EvaluationResult
 from fastapi.responses import StreamingResponse
 from langgraph.config import get_stream_writer
-from langgraph.stream import ProtocolEvent, StreamChannel, StreamTransformer
+from src.backend.state import ResearchState
+from langchain_core.messages import HumanMessage, SystemMessage
 
-# 1. Custom transformer to collect events
-class CustomTransformer(StreamTransformer):
-    required_stream_modes = ("custom",)
 
-    def __init__(self, scope: tuple[str, ...] = ()) -> None:
-        super().__init__(scope)
-        self.log = StreamChannel()
-
-    def init(self) -> dict:
-        return {"custom": self.log}
-
-    def process(self, event: ProtocolEvent) -> bool:
-        if event["method"] == "custom":
-            self.log.push(event["params"]["data"])
-        return True
 
 logger = setup_logger(__name__)
 
@@ -61,28 +48,49 @@ async def ask_question(request: QuestionRequest):
         logger.error(f"Failed to answer question: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/stream")
-async def stream_data(request: QuestionRequest):
-    config = {"configurable": {"thread_id": request.session_id}}
-    async def generate():
-        # Start streaming
-        stream = await deep_research_agent.workflow.astream_events(
-            {"query": request.question, "max_iterations": request.max_iterations},
-            version="v3", 
-            config=config,
-            transformers=[CustomTransformer]
-        )
-        
-        # Stream custom events as they happen
-        async for item in stream.extensions["custom"]:
-            yield f"data: {item}\n\n"
-            
-        # Await final output
-        final = await stream.output
-        yield f"data: final:{final}\n\n"
-        
-    return StreamingResponse(generate(), media_type="text/event-stream")
 
+@app.post("/get_stream")
+async def get_stream(request: QuestionRequest):
+    try:
+        config = {"configurable": {"thread_id": request.session_id}}
+        initial_state = ResearchState(
+            query=request.question,
+            messages=[HumanMessage(content=request.question)],
+            all_messages=[HumanMessage(content=request.question)],
+            plan="",
+            instructions="",
+            subqueries=[],
+            sources=[],
+            validated_sources=[],
+            reflection={},
+            final_answer="",
+            loop_count=1,
+            session_id=request.session_id
+        )
+
+        async for chunk in deep_research_agent.workflow.astream(
+            # {"query": request.question, "max_iterations": request.max_iterations, "session_id": request.session_id},
+            initial_state,
+            config=config,
+            stream_mode=["custom", "messages"],
+            version="v2", 
+        ):
+            if chunk.get("type") == "custom":
+                logger.info(f"Streaming custom event: {chunk.get('data',{}).get('status', '')}")
+                yield chunk.get("data", {}).get("status")
+            elif chunk.get("type") == "messages":
+                # logger.info(f"Streaming messages")
+                chunk_data = chunk.get("data", ())
+                messages = chunk_data[0] if len(chunk_data) > 0 else None
+                node_name = chunk_data[1].get("langgraph_node", "") if len(chunk_data) > 1 else ""
+                if node_name == "synthesis_node" and messages and messages.content:
+                    # logger.info(f"Streaming message content: {chunk_data[0].content[:50]}...")
+                    yield chunk_data[0].content
+
+        logger.info("Streaming completed.")
+    except Exception as e:
+        logger.error(f"Error during streaming: {e}")
+        yield f"Error: {str(e)}"
 
 
 @app.on_event("shutdown")

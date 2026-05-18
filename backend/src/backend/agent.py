@@ -89,10 +89,11 @@ class DeepResearchAgent:
         )
         # self.llm = 
 
+        self.writer = None
+
         self.search_tool = DuckDuckGoSearchResults(
             num_results=MAX_SEARCH_RESULTS
         )
-        self.writer = None
         self.workflow = self._build_workflow()
         self.workflow.get_graph().draw_mermaid_png(output_file_path="graph.png")
         logger.info("Workflow graph visualization saved as graph.png")
@@ -186,9 +187,7 @@ class DeepResearchAgent:
         """
         Takes the initial query and generates a step-by-step research plan.
         """
-        if self.writer is None:
-            logger.warning("Stream writer not initialized. Initializing now.")
-            self.writer = get_stream_writer()
+        self.writer = get_stream_writer()
         
         session_folder = f"{OUTPUT_DIR}/session_{state['session_id']}"
         os.makedirs(session_folder, exist_ok=True)
@@ -226,6 +225,8 @@ class DeepResearchAgent:
         """Takes the research plan and decomposes it into focused subqueries."""
         logger.info(f"=== DECOMPOSER NODE {state['loop_count']} ===")
         #logger.info(f"Current state:{state}")
+        self.writer = get_stream_writer()
+        self.writer({"status": "Decomposing the research plan into subqueries..."})
 
         if state["loop_count"] == 1:
             logger.info(f"Using initial decomposition without reflection instructions.")
@@ -265,6 +266,7 @@ class DeepResearchAgent:
 
     def search_node(self, state: ResearchState):
         """Executes the search for each subquery and retrieves relevant sources."""
+        self.writer = get_stream_writer()
         self.writer({"status": "Searching for information..."})
         logger.info(f"=== SEARCH NODE {state['loop_count']} ===")
         #logger.info(f"Current state:{state}")
@@ -313,6 +315,7 @@ class DeepResearchAgent:
         # And validating one by one, but ideally we could batch them
         logger.info(f"=== VALIDATION NODE {state['loop_count']} ===")
         #logger.info(f"Current state:{state}")
+        self.writer = get_stream_writer()
         self.writer({"status": "Validating retrieved sources..."})
 
 
@@ -383,6 +386,7 @@ class DeepResearchAgent:
 
         logger.info(f"=== REFLECTION NODE {state['loop_count']} ===")
         #logger.info(f"Current state:{state}")
+        self.writer = get_stream_writer()
         self.writer({"status": "Reflecting on the research process..."})
 
         if state["loop_count"] >= MAX_LOOPS:
@@ -455,6 +459,7 @@ class DeepResearchAgent:
         """
         logger.info(f"=== SYNTHESIS NODE {state['loop_count']} ===")
         #logger.info(f"Current state:{state}")
+        self.writer = get_stream_writer()
         self.writer({"status": "Synthesizing the final answer..."})
         messages = [
             SystemMessage(content=SYNTHESIS_PROMPT),
@@ -468,7 +473,8 @@ class DeepResearchAgent:
 
         state["all_messages"] = state["all_messages"] + messages + [response]
 
-        self.writer({"status": "Saving the final answer..."})
+        # self.writer({"status": "Saving the final answer..."})
+        logger.info(f"Synthesis completed. Final answer generated.")
         filename = f"{OUT_DIR}/final_answer_{state['session_id']}.md"
 
         # Saving the final answer in the markdown file 
@@ -484,13 +490,17 @@ class DeepResearchAgent:
     ]:
         logger.info(f"=== ROUTER {state['loop_count']} ===")
         #logger.info(f"Current state:{state}")
+        self.writer = get_stream_writer()
 
         if state["loop_count"] >= MAX_LOOPS+1:
+            self.writer({"status": "Maximum loop count reached. Proceeding to synthesis."})
             return "synthesis_node"
 
         if state["reflection"].get("info_needed", False):
+            self.writer({"status": "More information needed. Looping back to decomposer."})
             return "decomposer_node"
 
+        self.writer({"status": "No more information needed. Proceeding to synthesis."})
         return "synthesis_node"
 
     async def run(self, question: str, max_iterations: int = 3, session_id: str = "1") -> Dict[str, Any]:
