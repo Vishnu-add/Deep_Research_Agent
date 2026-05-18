@@ -33,7 +33,7 @@ export default defineHandler(async (event) => {
   const db = useDrizzle()
 
   const chat = await db.query.chats.findFirst({
-    where: (chat, { eq }) => and(eq(chat.id, id as string), eq(chat.userId, session.data.user?.id || session.id!)),
+    where: (chat, { eq }) => and(eq(chat.id, id), eq(chat.userId, session.data.user?.id || session.id!)),
     with: {
       messages: true
     }
@@ -54,26 +54,23 @@ export default defineHandler(async (event) => {
       prompt: JSON.stringify(messages[0])
     })
 
-    await db.update(tables.chats).set({ title }).where(eq(tables.chats.id, id as string))
+    await db.update(tables.chats).set({ title }).where(eq(tables.chats.id, id))
   }
 
   const lastMessage = messages[messages.length - 1]
   if (lastMessage?.role === 'user' && messages.length > 1) {
     await db.insert(tables.messages).values({
       id: lastMessage.id,
-      chatId: id as string,
+      chatId: id,
       role: 'user',
       parts: lastMessage.parts
     }).onConflictDoUpdate({ target: tables.messages.id, set: { parts: lastMessage.parts } })
   }
 
-  const abortController = new AbortController()
-  event.runtime?.node?.req?.on('close', () => abortController.abort())
-
   const stream = createUIMessageStream({
     execute: async ({ writer }) => {
       const result = streamText({
-        abortSignal: abortController.signal,
+        abortSignal: event.req.signal,
         model: gateway(model),
         system: `You are a knowledgeable and helpful AI assistant. ${session.data.user?.username ? `The user's name is ${session.data.user.username}.` : ''} Your goal is to provide clear, accurate, and well-structured responses.
 

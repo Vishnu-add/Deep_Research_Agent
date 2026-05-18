@@ -13,7 +13,7 @@ export default defineHandler(async (event) => {
   }).parse)
 
   const chat = await useDrizzle().query.chats.findFirst({
-    where: (chat, { eq }) => eq(chat.id, id as string),
+    where: (chat, { eq }) => eq(chat.id, id),
     with: {
       messages: {
         orderBy: (message, { asc }) => asc(message.createdAt)

@@ -13,6 +13,7 @@ import ChatMessageActions from '../../components/chat/message/MessageActions.vue
 import ChatVisibility from '../../components/chat/ChatVisibility.vue'
 import ChatTitle from '../../components/chat/ChatTitle.vue'
 import ChatIndicator from '../../components/chat/Indicator.vue'
+import RotatingIndicator from '../../components/chat/RotatingIndicator.vue'
 import Navbar from '../../components/Navbar.vue'
 import type { Vote } from '../../../server/utils/drizzle'
 
@@ -47,10 +48,11 @@ const chat = new Chat({
   id: data?.id,
   messages: data?.messages,
   transport: new DefaultChatTransport({
-    api: `/api/chats/${data?.id}`,
+    api: `/api/research/${data?.id}`,
     headers: { [headerName]: csrf() },
     body: {
-      model: model.value
+      model: model.value,
+      session_id: data?.id
     }
   }),
   onData: (dataPart) => {
@@ -219,10 +221,7 @@ onMounted(() => {
             <div class="flex items-center gap-1.5">
               <ChatIndicator />
 
-              <UChatShimmer
-                text="Thinking..."
-                class="text-sm"
-              />
+              <RotatingIndicator class="text-sm" />
             </div>
           </template>
 

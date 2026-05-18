@@ -15,6 +15,6 @@ export default defineHandler(async (event) => {
   const db = useDrizzle()
 
   return await db.delete(tables.chats)
-    .where(and(eq(tables.chats.id, id as string), eq(tables.chats.userId, session.data.user?.id || session.id!)))
+    .where(and(eq(tables.chats.id, id), eq(tables.chats.userId, session.data.user?.id || session.id!)))
     .returning()
 })

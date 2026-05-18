@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref } from 'vue'
+import { useIntervalFn } from '@vueuse/core'
 
 const size = 4
 const gap = 2
@@ -29,16 +30,8 @@ function nextStep() {
   }
 }
 
-let matrixInterval: ReturnType<typeof setInterval> | undefined
-
-onMounted(() => {
-  nextStep()
-  matrixInterval = setInterval(nextStep, 120)
-})
-
-onUnmounted(() => {
-  clearInterval(matrixInterval)
-})
+nextStep()
+useIntervalFn(nextStep, 120)
 </script>
 
 <template>

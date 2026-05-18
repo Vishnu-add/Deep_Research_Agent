@@ -19,7 +19,7 @@ export default defineHandler(async (event) => {
   const db = useDrizzle()
 
   const chat = await db.query.chats.findFirst({
-    where: (chat, { eq }) => and(eq(chat.id, id as string), eq(chat.userId, session.data.user?.id || session.id!))
+    where: (chat, { eq }) => and(eq(chat.id, id), eq(chat.userId, session.data.user?.id || session.id!))
   })
 
   if (!chat) {
@@ -28,7 +28,7 @@ export default defineHandler(async (event) => {
 
   const allMessages = await db.select({ id: tables.messages.id, role: tables.messages.role })
     .from(tables.messages)
-    .where(eq(tables.messages.chatId, id as string))
+    .where(eq(tables.messages.chatId, id))
     .orderBy(asc(tables.messages.createdAt), asc(tables.messages.id))
 
   const targetIndex = allMessages.findIndex(m => m.id === messageId)

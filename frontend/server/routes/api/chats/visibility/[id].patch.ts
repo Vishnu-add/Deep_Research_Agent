@@ -20,7 +20,7 @@ export default defineHandler(async (event) => {
 
   const chat = await db.query.chats.findFirst({
     where: (chat) => and(
-      eq(chat.id, id as string),
+      eq(chat.id, id),
       eq(chat.userId, session.data.user?.id || session.id!)
     )
   })
@@ -32,7 +32,7 @@ export default defineHandler(async (event) => {
   const [updated] = await db.update(tables.chats)
     .set({ visibility })
     .where(and(
-      eq(tables.chats.id, id as string),
+      eq(tables.chats.id, id),
       eq(tables.chats.userId, session.data.user?.id || session.id!)
     ))
     .returning()
