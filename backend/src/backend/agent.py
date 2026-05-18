@@ -370,7 +370,7 @@ class DeepResearchAgent:
             if item["score"] >= RELEVANCE_THRESHOLD:
                 filtered_question_ids.append(item["question_id"])
 
-        for src in state["sources"]:
+        for src in state["new_sources"]:
             if src["question_id"] in filtered_question_ids:
                 filtered_sources.append(src)
 
