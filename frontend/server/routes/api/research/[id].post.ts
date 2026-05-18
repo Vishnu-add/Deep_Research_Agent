@@ -1,14 +1,39 @@
 import type { UIMessage } from 'ai'
-import { createUIMessageStream, createUIMessageStreamResponse, generateText } from 'ai'
-import { gateway } from '@ai-sdk/gateway'
+import { createUIMessageStream, createUIMessageStreamResponse } from 'ai'
 import { z } from 'zod'
 import { useUserSession } from '../../../utils/session'
 import { useDrizzle, tables, eq, and } from '../../../utils/drizzle'
 import { defineHandler, HTTPError } from 'nitro'
 import { getValidatedRouterParams, readValidatedBody } from 'nitro/h3'
+import { OLLAMA_URL } from '../../../utils/ollama'
 
 const BACKEND_URL = process.env.RESEARCH_BACKEND_URL || 'http://localhost:8001/get_stream'
+const TITLE_MODEL = process.env.OLLAMA_TITLE_MODEL || 'qwen3:8b'
 const MAX_ITER = 3
+
+async function genTitle(msg: string, m?: string): Promise<string> {
+  const fallback = msg.split('\n')[0].trim().slice(0, 28).replace(/["':]/g, '')
+  try {
+    const res = await fetch(`${OLLAMA_URL}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: m || TITLE_MODEL,
+        messages: [
+          { role: 'system', content: '/no_think Generate a chat title under 30 chars. No quotes, no colons, no markdown, plain text only.' },
+          { role: 'user', content: msg }
+        ],
+        stream: false
+      })
+    })
+    if (!res.ok) return fallback
+    const j: any = await res.json()
+    const raw = (j?.message?.content || '').replace(/<think>[\s\S]*?<\/think>/g, '').trim()
+    return raw.slice(0, 30).replace(/["':\n]/g, '') || fallback
+  } catch {
+    return fallback
+  }
+}
 
 function extractObjects(buf: string): { objs: string[], rest: string } {
   const objs: string[] = []
@@ -41,7 +66,7 @@ function lastUserText(msgs: UIMessage[]): string {
 export default defineHandler(async (event) => {
   const session = await useUserSession(event)
   const { id } = await getValidatedRouterParams(event, z.object({ id: z.string() }).parse)
-  const { messages, session_id } = await readValidatedBody(event, z.object({
+  const { messages, session_id, model } = await readValidatedBody(event, z.object({
     messages: z.array(z.custom<UIMessage>()),
     session_id: z.string().optional(),
     model: z.string().optional()
@@ -54,19 +79,12 @@ export default defineHandler(async (event) => {
   })
   if (!chat) throw new HTTPError({ statusCode: 404, statusMessage: 'Chat not found' })
 
-  if (!chat.title) {
-    const { text: title } = await generateText({
-      model: gateway('openai/gpt-4.1-nano'),
-      system: `You are a title generator for a chat:
-          - Generate a short title based on the first user's message
-          - The title should be less than 30 characters long
-          - The title should be a summary of the user's message
-          - Do not use quotes (' or ") or colons (:) or any other punctuation
-          - Do not use markdown, just plain text`,
-      prompt: JSON.stringify(messages[0])
-    })
-    await db.update(tables.chats).set({ title }).where(eq(tables.chats.id, id))
-  }
+  const titleP: Promise<string> | null = chat.title ? null : (async () => {
+    const first = (messages[0]?.parts || []).filter((p: any) => p.type === 'text').map((p: any) => p.text).join('\n')
+    const t = await genTitle(first, model)
+    await db.update(tables.chats).set({ title: t }).where(eq(tables.chats.id, id))
+    return t
+  })()
 
   const last = messages[messages.length - 1]
   if (last?.role === 'user' && messages.length > 1) {
@@ -84,15 +102,18 @@ export default defineHandler(async (event) => {
   const stream = createUIMessageStream({
     originalMessages: messages,
     execute: async ({ writer }) => {
+      const aid = crypto.randomUUID()
       const rid = crypto.randomUUID()
       const tid = crypto.randomUUID()
       let rOpen = false, tOpen = false
-      writer.write({ type: 'start' })
+      let savedR = '', savedT = ''
+      writer.write({ type: 'start', messageId: aid })
+      if (titleP) titleP.then(t => { try { writer.write({ type: 'data-chat-title', data: { message: t }, transient: true }) } catch {} }).catch(() => {})
       try {
         const res = await fetch(BACKEND_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ question: q, max_iterations: MAX_ITER, session_id: sid }),
+          body: JSON.stringify({ question: q, max_iterations: MAX_ITER, session_id: sid, model }),
           signal: event.req.signal
         })
         if (!res.ok || !res.body) throw new Error(`Backend ${res.status}`)
@@ -101,9 +122,11 @@ export default defineHandler(async (event) => {
         let buf = ''
         const handle = (type: string, desc: string) => {
           if (type === 'thinking') {
+            savedR += desc + '\n'
             if (!rOpen) { writer.write({ type: 'reasoning-start', id: rid }); rOpen = true }
             writer.write({ type: 'reasoning-delta', id: rid, delta: desc + '\n' })
           } else if (type === 'final_answer') {
+            savedT += desc
             if (rOpen) { writer.write({ type: 'reasoning-end', id: rid }); rOpen = false }
             if (!tOpen) { writer.write({ type: 'text-start', id: tid }); tOpen = true }
             writer.write({ type: 'text-delta', id: tid, delta: desc })
@@ -147,6 +170,11 @@ export default defineHandler(async (event) => {
         if (!tOpen) { writer.write({ type: 'text-start', id: tid }); tOpen = true }
         writer.write({ type: 'text-delta', id: tid, delta: `Error: ${e?.message || 'stream failed'}` })
         writer.write({ type: 'text-end', id: tid })
+      } finally {
+        const parts: any[] = []
+        if (savedR) parts.push({ type: 'reasoning', text: savedR })
+        if (savedT) parts.push({ type: 'text', text: savedT })
+        if (parts.length) { try { await db.insert(tables.messages).values({ id: aid, chatId: id, role: 'assistant', parts }).onConflictDoNothing() } catch {} }
       }
       writer.write({ type: 'finish' })
     },

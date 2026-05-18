@@ -7,7 +7,7 @@ from src.backend.models.schemas import QuestionRequest, AnswerResponse, Evaluati
 from fastapi.responses import StreamingResponse
 from langgraph.config import get_stream_writer
 from src.backend.state import ResearchState
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 
 
 
@@ -88,7 +88,7 @@ async def get_stream(request: QuestionRequest):
                 chunk_data = chunk.get("data", ())
                 messages = chunk_data[0] if len(chunk_data) > 0 else None
                 node_name = chunk_data[1].get("langgraph_node", "") if len(chunk_data) > 1 else ""
-                if node_name == "synthesis_node" and messages and messages.content:
+                if node_name == "synthesis_node" and messages and messages.content and isinstance(messages, AIMessage):
                     # logger.info(f"Streaming message content: {chunk_data[0].content[:50]}...")
                     # yield chunk_data[0].content
                     yield {

@@ -3,6 +3,7 @@ import { isReasoningUIPart, isTextUIPart, isToolUIPart, getToolName } from 'ai'
 import type { UIMessage } from 'ai'
 import { isPartStreaming, isToolStreaming } from '@nuxt/ui/utils/ai'
 import ChatComark from '../Comark'
+import ReasoningSteps from '../ReasoningSteps.vue'
 import ChatToolChart from '../tool/Chart.vue'
 import ChatToolWeather from '../tool/Weather.vue'
 import ChatToolSources from '../tool/Sources.vue'
@@ -34,8 +35,8 @@ const emit = defineEmits<{
       :streaming="isPartStreaming(part)"
       chevron="leading"
     >
-      <ChatComark
-        :markdown="part.text"
+      <ReasoningSteps
+        :text="part.text"
         :streaming="isPartStreaming(part)"
       />
     </UChatReasoning>
