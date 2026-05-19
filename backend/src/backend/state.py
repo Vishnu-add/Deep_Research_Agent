@@ -18,6 +18,7 @@ class ResearchState(TypedDict):
     loop_count: int
     session_id: str
     session_folder: str
+    model: Optional[str]
 
 # class ResearchState(TypedDict):
 #     question: str

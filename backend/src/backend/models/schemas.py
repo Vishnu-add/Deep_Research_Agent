@@ -5,6 +5,7 @@ class QuestionRequest(BaseModel):
     question: str
     max_iterations: Optional[int] = 3
     session_id: Optional[str] = "1"
+    model: Optional[str] = None
 
 class Evidence(BaseModel):
     title: str

@@ -65,7 +65,8 @@ async def get_stream(request: QuestionRequest):
             reflection={},
             final_answer="",
             loop_count=1,
-            session_id=request.session_id
+            session_id=request.session_id,
+            model=request.model,
         )
 
         async for chunk in deep_research_agent.workflow.astream(

@@ -106,8 +106,14 @@ class DeepResearchAgent:
         self.workflow.get_graph().draw_mermaid_png(output_file_path="graph.png")
         logger.info("Workflow graph visualization saved as graph.png")
 
-    
-    
+    def _llm(self, state: ResearchState):
+        """Build a ChatOllama for this run, using the model picked by the caller
+        (state['model']) or falling back to MODEL_NAME."""
+        name = state.get("model") or MODEL_NAME
+        return ChatOllama(model=name, temperature=TEMPERATURE)
+
+
+
     def _build_workflow(self) -> StateGraph:
         """Build the LangGraph workflow."""
         graph = StateGraph(ResearchState)
@@ -213,7 +219,7 @@ class DeepResearchAgent:
 
         # self.writer({"status": "Invoking the planner agent..."})
         logger.info(f"Invoking planner agent")
-        response = self.llm.invoke(messages)
+        response = self._llm(state).invoke(messages)
 
         # logger.info(f"Planning response:{response}")
         self.writer({"status": "Planning completed."})
@@ -243,19 +249,44 @@ class DeepResearchAgent:
                 SystemMessage(content=DECOMPOSER_PROMPT),
                 HumanMessage(content=USER_DECOMPOSER_PROMPT.format(plan=state["plan"])),
             ]
-            llm_tool = self.llm.bind_tools([DECOMPOSER_TOOL], tool_choice="required")
+            llm_tool = self._llm(state).bind_tools([DECOMPOSER_TOOL], tool_choice="required")
         else:
             logger.info(f"Using instructions from reflection to guide decomposition: {state['instructions']}")
             messages = [
                 SystemMessage(content=DECOMPOSER_PROMPT_ITER_2.format(instructions=state["instructions"])),
                 HumanMessage(content=USER_DECOMPOSER_PROMPT_ITER_2.format(plan=state["plan"], existing_subquestions=state["subqueries"])),
             ]
-            llm_tool = self.llm.bind_tools([DECOMPOSER_TOOL_ITER_2], tool_choice="required")
-        response = llm_tool.invoke(messages)
+            llm_tool = self._llm(state).bind_tools([DECOMPOSER_TOOL_ITER_2], tool_choice="required")
 
-        # logger.info(f"Decomposition response:{response.tool_calls}")
+        response = None
+        for i in range(3):
+            response = llm_tool.invoke(messages)
+
+            tool_calls = response.tool_calls
+            response_content = response.content
+            # logger.info(f"Decomposition response:{response.tool_calls}")
+
+            if tool_calls:
+                break
+
+            if not tool_calls and not response_content:
+                logger.info(f"No decomposition response received.")
+                # continue
+        if response is None or response.tool_calls is None or len(response.tool_calls) == 0:
+            logger.info(f"No decomposition response received after multiple attempts.")
+            self.writer({"status": "Decomposition completed."})
+            return {
+                "subqueries": state["subqueries"],
+                "new_subqueries": [],
+            }
 
         sub_queries = response.tool_calls[0].get("args", {}).get("subqueries", [])
+        # Smaller models occasionally return subqueries as a string or another
+        # non-list shape; coerce to a list so state concatenation stays safe.
+        if isinstance(sub_queries, str):
+            sub_queries = [sub_queries]
+        elif not isinstance(sub_queries, list):
+            sub_queries = []
 
         self.writer({"status": "Decomposition completed."})
 
@@ -328,7 +359,7 @@ class DeepResearchAgent:
         self.writer({"status": random.choice(VALIDATION_MESSAGES)})
 
 
-        llm_tool = self.llm.bind_tools([SOURCE_VALIDATION_TOOL], tool_choice="required")
+        llm_tool = self._llm(state).bind_tools([SOURCE_VALIDATION_TOOL], tool_choice="required")
 
         if len(state["new_sources"]) > 5:
             state["new_sources"] = state["new_sources"][:5]
@@ -367,8 +398,13 @@ class DeepResearchAgent:
         filtered_sources = []
 
         for item in parsed:
-            if item["score"] >= RELEVANCE_THRESHOLD:
-                filtered_question_ids.append(item["question_id"])
+            # Smaller models occasionally return malformed entries; skip anything
+            # that is not a dict with the expected fields.
+            if not isinstance(item, dict):
+                continue
+            score = item.get("score")
+            if isinstance(score, (int, float)) and score >= RELEVANCE_THRESHOLD:
+                filtered_question_ids.append(item.get("question_id"))
 
         for src in state["new_sources"]:
             if src["question_id"] in filtered_question_ids:
@@ -403,7 +439,7 @@ class DeepResearchAgent:
             state["loop_count"] += 1
             return state
 
-        llm_tool = self.llm.bind_tools([REFLECTION_TOOL], tool_choice="required")
+        llm_tool = self._llm(state).bind_tools([REFLECTION_TOOL], tool_choice="required")
 
         messages = [
             SystemMessage(content=REFLECTION_PROMPT),
@@ -474,7 +510,7 @@ class DeepResearchAgent:
             SystemMessage(content=SYNTHESIS_PROMPT),
             HumanMessage(content=USER_PROMPT.format(query=state["query"], validated_sources=state["validated_sources"]))
         ]
-        response = self.llm.invoke(messages)
+        response = self._llm(state).invoke(messages)
 
         state["final_answer"] = response.content
 
