@@ -10,10 +10,9 @@ const router = useRouter()
 const route = useRoute()
 const { loggedIn, openInPopup, fetchSession } = useUserSession()
 const { groups, fetchChats } = useChats()
-const { renameChat, deleteChat } = useChatActions()
+const { renameChat, deleteChat, deleteChatsBelow } = useChatActions()
 
-await fetchSession()
-await fetchChats()
+await Promise.all([fetchSession(), fetchChats()])
 
 const sidebarOpen = ref(false)
 const searchOpen = ref(false)
@@ -37,7 +36,10 @@ const items = computed(() => groups.value?.flatMap((group) => {
 }))
 
 function getChatActions(item: { id: string, label: string }): DropdownMenuItem[][] {
-  return [[
+  const flat = groups.value.flatMap(g => g.items)
+  const idx = flat.findIndex(c => c.id === item.id)
+  const below = idx >= 0 ? flat.slice(idx + 1).map(c => c.id) : []
+  const actions: DropdownMenuItem[][] = [[
     {
       label: 'Rename',
       icon: 'i-lucide-pencil',
@@ -51,6 +53,15 @@ function getChatActions(item: { id: string, label: string }): DropdownMenuItem[]
       onSelect: () => deleteChat(item.id)
     }
   ]]
+  if (below.length > 0) {
+    actions[1]!.push({
+      label: `Delete ${below.length} below`,
+      icon: 'i-lucide-list-x',
+      color: 'error' as const,
+      onSelect: () => deleteChatsBelow(below)
+    })
+  }
+  return actions
 }
 
 defineShortcuts({
@@ -76,11 +87,12 @@ defineShortcuts({
           to="/"
           class="flex items-center gap-0.5"
         >
-          <UIcon
-            name="i-logos-vue"
-            class="h-5 w-auto shrink-0"
-          />
-          <span class="text-xl font-bold text-highlighted">Chat</span>
+          <img
+            src="/logo.svg"
+            alt="Logo"
+            class="h-16 w-auto shrink-0 dark:invert"
+          >
+          <span class="text-xl font-bold text-highlighted">La Loutre</span>
         </ULink>
 
         <UDashboardSidebarCollapse class="ms-auto" />
@@ -128,7 +140,7 @@ defineShortcuts({
           orientation="vertical"
           :ui="{
             link: 'overflow-hidden pr-7.5',
-            linkTrailing: 'translate-x-full group-hover:translate-x-0 group-has-data-[state=open]:translate-x-0 transition-transform ms-0 absolute inset-e-px'
+            linkTrailing: 'translate-x-full group-hover:translate-x-0 group-focus-within:translate-x-0 group-has-data-[state=open]:translate-x-0 transition-transform ms-0 absolute inset-e-px'
           }"
         >
           <template #chat-trailing="{ item }">
@@ -144,7 +156,6 @@ defineShortcuts({
                 size="sm"
                 class="rounded-[5px] hover:bg-accented/50 focus-visible:bg-accented/50 data-[state=open]:bg-accented/50"
                 aria-label="Chat actions"
-                tabindex="-1"
                 @click.stop.prevent
               />
             </UDropdownMenu>

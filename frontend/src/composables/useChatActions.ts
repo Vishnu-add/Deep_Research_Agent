@@ -23,6 +23,13 @@ export function useChatActions() {
       color: 'error'
     }
   })
+  const deleteBelowModal = overlay.create(ModalConfirm, {
+    props: {
+      title: 'Delete chats below',
+      description: 'Delete every chat below this one? This cannot be undone.',
+      color: 'error'
+    }
+  })
 
   async function renameChat(id: string, currentTitle?: string | null): Promise<string | null> {
     const instance = renameModal.open({ title: currentTitle ?? '' })
@@ -87,8 +94,48 @@ export function useChatActions() {
     }
   }
 
+  async function deleteChatsBelow(ids: string[]): Promise<boolean> {
+    if (!ids.length) return false
+
+    const instance = deleteBelowModal.open()
+    const result = await instance.result
+
+    if (!result) return false
+
+    const currentId = (route.params as { id?: string }).id
+    try {
+      await Promise.all(ids.map(id => $fetch(`/api/chats/${id}`, {
+        method: 'DELETE',
+        headers: { [headerName]: csrf() }
+      })))
+
+      ids.forEach(id => removeChat(id))
+
+      toast.add({
+        title: 'Chats deleted',
+        description: `${ids.length} chat${ids.length > 1 ? 's' : ''} deleted`,
+        icon: 'i-lucide-trash'
+      })
+
+      if (currentId && ids.includes(currentId)) {
+        router.push('/')
+      }
+
+      return true
+    } catch {
+      toast.add({
+        description: 'Failed to delete chats',
+        icon: 'i-lucide-alert-circle',
+        color: 'error'
+      })
+
+      return false
+    }
+  }
+
   return {
     renameChat,
-    deleteChat
+    deleteChat,
+    deleteChatsBelow
   }
 }

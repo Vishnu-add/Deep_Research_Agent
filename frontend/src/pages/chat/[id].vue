@@ -10,7 +10,6 @@ import { useCsrf } from '../../composables/useCsrf'
 import { useRoute } from 'vue-router'
 import ChatMessageContent from '../../components/chat/message/MessageContent.vue'
 import ChatMessageActions from '../../components/chat/message/MessageActions.vue'
-import ChatVisibility from '../../components/chat/ChatVisibility.vue'
 import ChatTitle from '../../components/chat/ChatTitle.vue'
 import ChatIndicator from '../../components/chat/Indicator.vue'
 import RotatingIndicator from '../../components/chat/RotatingIndicator.vue'
@@ -26,7 +25,6 @@ const { csrf, headerName } = useCsrf()
 const data = await $fetch(`/api/chats/${route.params.id}`).catch(() => null)
 
 const isOwner = computed(() => data?.isOwner ?? false)
-const visibility = ref<'public' | 'private'>(data?.visibility ?? 'private')
 const title = ref<string | null>(data?.title ?? null)
 
 watch(() => chats.value.find(c => c.id === data?.id)?.label, (label) => {
@@ -198,13 +196,6 @@ onMounted(() => {
             @update:title="title = $event"
           />
         </template>
-
-        <ChatVisibility
-          v-if="isOwner"
-          :chat-id="data!.id"
-          :visibility="visibility"
-          @update:visibility="visibility = $event"
-        />
       </Navbar>
     </template>
 

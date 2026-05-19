@@ -11,16 +11,18 @@ const BACKEND_URL = process.env.RESEARCH_BACKEND_URL || 'http://localhost:8001/g
 const TITLE_MODEL = process.env.OLLAMA_TITLE_MODEL || 'qwen3:8b'
 const MAX_ITER = 3
 
-async function genTitle(msg: string, m?: string): Promise<string> {
+const REFUSAL = /^(as my|as of|i cannot|i can't|i am unable|i'm unable|i'm sorry|sorry|i don't|i do not|here is|here's|the title|sure|certainly|of course)/i
+
+async function genTitle(msg: string): Promise<string> {
   const fallback = msg.split('\n')[0].trim().slice(0, 28).replace(/["':]/g, '')
   try {
     const res = await fetch(`${OLLAMA_URL}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: m || TITLE_MODEL,
+        model: TITLE_MODEL,
         messages: [
-          { role: 'system', content: '/no_think Generate a chat title under 30 chars. No quotes, no colons, no markdown, plain text only.' },
+          { role: 'system', content: '/no_think You output a chat title only. Never answer the user. Never include "As", "I", "Sorry", quotes, colons, markdown, or any prefix. Reply with 2 to 5 words summarising the user message, nothing else.' },
           { role: 'user', content: msg }
         ],
         stream: false
@@ -28,8 +30,9 @@ async function genTitle(msg: string, m?: string): Promise<string> {
     })
     if (!res.ok) return fallback
     const j: any = await res.json()
-    const raw = (j?.message?.content || '').replace(/<think>[\s\S]*?<\/think>/g, '').trim()
-    return raw.slice(0, 30).replace(/["':\n]/g, '') || fallback
+    const first = (j?.message?.content || '').replace(/<think>[\s\S]*?<\/think>/g, '').trim().split('\n')[0].trim()
+    if (!first || REFUSAL.test(first)) return fallback
+    return first.slice(0, 30).replace(/["':\n]/g, '') || fallback
   } catch {
     return fallback
   }
@@ -81,7 +84,7 @@ export default defineHandler(async (event) => {
 
   const titleP: Promise<string> | null = chat.title ? null : (async () => {
     const first = (messages[0]?.parts || []).filter((p: any) => p.type === 'text').map((p: any) => p.text).join('\n')
-    const t = await genTitle(first, model)
+    const t = await genTitle(first)
     await db.update(tables.chats).set({ title: t }).where(eq(tables.chats.id, id))
     return t
   })()
@@ -102,12 +105,10 @@ export default defineHandler(async (event) => {
   const stream = createUIMessageStream({
     originalMessages: messages,
     execute: async ({ writer }) => {
-      const aid = crypto.randomUUID()
       const rid = crypto.randomUUID()
       const tid = crypto.randomUUID()
       let rOpen = false, tOpen = false
-      let savedR = '', savedT = ''
-      writer.write({ type: 'start', messageId: aid })
+      writer.write({ type: 'start' })
       if (titleP) titleP.then(t => { try { writer.write({ type: 'data-chat-title', data: { message: t }, transient: true }) } catch {} }).catch(() => {})
       try {
         const res = await fetch(BACKEND_URL, {
@@ -122,11 +123,9 @@ export default defineHandler(async (event) => {
         let buf = ''
         const handle = (type: string, desc: string) => {
           if (type === 'thinking') {
-            savedR += desc + '\n'
             if (!rOpen) { writer.write({ type: 'reasoning-start', id: rid }); rOpen = true }
             writer.write({ type: 'reasoning-delta', id: rid, delta: desc + '\n' })
           } else if (type === 'final_answer') {
-            savedT += desc
             if (rOpen) { writer.write({ type: 'reasoning-end', id: rid }); rOpen = false }
             if (!tOpen) { writer.write({ type: 'text-start', id: tid }); tOpen = true }
             writer.write({ type: 'text-delta', id: tid, delta: desc })
@@ -170,11 +169,6 @@ export default defineHandler(async (event) => {
         if (!tOpen) { writer.write({ type: 'text-start', id: tid }); tOpen = true }
         writer.write({ type: 'text-delta', id: tid, delta: `Error: ${e?.message || 'stream failed'}` })
         writer.write({ type: 'text-end', id: tid })
-      } finally {
-        const parts: any[] = []
-        if (savedR) parts.push({ type: 'reasoning', text: savedR })
-        if (savedT) parts.push({ type: 'text', text: savedT })
-        if (parts.length) { try { await db.insert(tables.messages).values({ id: aid, chatId: id, role: 'assistant', parts }).onConflictDoNothing() } catch {} }
       }
       writer.write({ type: 'finish' })
     },
