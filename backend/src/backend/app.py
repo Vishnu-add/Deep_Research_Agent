@@ -8,12 +8,15 @@ from fastapi.responses import StreamingResponse
 from langgraph.config import get_stream_writer
 from src.backend.state import ResearchState
 from langchain_core.messages import HumanMessage, SystemMessage
-
+from src.backend.evaluate_agent import evaluate_agent 
 from fastapi.middleware.cors import CORSMiddleware
 import os
 from langfuse import get_client
 from langfuse.langchain import CallbackHandler
 
+LANGFUSE_SECRET_KEY="sk-lf-f3310337-d8ec-4364-84ac-1668d59ba380"
+LANGFUSE_PUBLIC_KEY="pk-lf-2c8a83a3-a53f-44ea-a333-0730ecadc80b"
+LANGFUSE_BASE_URL="https://us.cloud.langfuse.com"
 
 
 os.environ["LANGFUSE_SECRET_KEY"] = LANGFUSE_SECRET_KEY
@@ -118,6 +121,55 @@ async def get_stream(request: QuestionRequest):
         logger.error(f"Error during streaming: {e}")
         yield f"Error: {str(e)}"
 
+    try:
+        logger.info("In evaluation")
+        config = {"configurable": {"thread_id": request.session_id}}
+        state = deep_research_agent.workflow.get_state(config=config)
+        state_values = state.values
+        # logger.info(f"State Values : {state_values}")
+        
+        if state_values:
+            asyncio.create_task(
+                evaluate_agent(state_values, deep_research_agent.name, request.session_id)
+            )
+            # asyncio.run(evaluate_agent(state_values, deep_research_agent.name, request.session_id))
+        else:
+            logger.info(f"No State values, SKIPPING evaluation!")
+
+    except Exception as e:
+        logger.exception(f"Exception while evaluating agent: {e}")
+    
+
+import asyncio
+@app.post("/evaluate")
+async def evaluate(request: EvaluationRequest):
+    logger.info("In evaluation")
+    try:
+        config = {"configurable": {"thread_id": request.session_id}}
+        state = deep_research_agent.workflow.get_state(config=config)
+        state_values = state.values
+        logger.info(f"State Values : {state_values}")
+        
+        if state_values:
+            asyncio.create_task(
+                evaluate_agent(state_values, deep_research_agent.name, request.session_id)
+            )
+            # asyncio.run(evaluate_agent(state_values, deep_research_agent.name, request.session_id))
+        else:
+            logger.info(f"No State values, SKIPPING evaluation!")
+        return {
+            "status": "success",
+            "message": "Evaluation Ongoing"
+        }
+
+    except Exception as e:
+        logger.exception(f"Exception while evaluating agent: {e}")
+
+        raise HTTPException(
+            status_code=500,
+            detail="Error occurred during evaluation"
+        )
+    
 
 @app.on_event("shutdown")
 async def shutdown_event():

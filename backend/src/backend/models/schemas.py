@@ -24,9 +24,11 @@ class AnswerResponse(BaseModel):
     reasoning_trace: List[ReasoningStep]
     evidence: List[Evidence]
 
+# class EvaluationRequest(BaseModel):
+#     predictions: List[Dict[str, Any]]
+#     ground_truth: List[Dict[str, Any]]
 class EvaluationRequest(BaseModel):
-    predictions: List[Dict[str, Any]]
-    ground_truth: List[Dict[str, Any]]
+    session_id: Optional[str] = "1"
 
 class EvaluationResult(BaseModel):
     exact_match: float

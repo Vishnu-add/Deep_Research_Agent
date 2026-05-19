@@ -117,7 +117,7 @@ class DeepResearchAgent:
             temperature=TEMPERATURE,
             reasoning=False
         )
-        # self.llm = 
+        self.name = "full_reflective_architecture"
 
         self.writer = None
 
@@ -583,6 +583,7 @@ class DeepResearchAgent:
                             "metadata": {"url": page.url}
                         })
                     except wp.DisambiguationError:
+                        logger.info(f"Error during WIKI page : {e}")
                         pass
                     if len(results) >= 2:
                         break
