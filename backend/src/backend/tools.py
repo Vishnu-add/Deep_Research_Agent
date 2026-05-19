@@ -129,48 +129,132 @@ DECOMPOSER_TOOL_ITER_2 = {
     }
 }
 
-
 SOURCE_VALIDATION_TOOL = {
     "type": "function",
     "function": {
-        "name": "validate_source",
-        "description": "Validate the relevance and reliability of the sources for the research question in terms of whether it provides useful information to answer the research question",
+        "name": "validate_source_claims",
+        "description": (
+            "Extract claims supported by the provided sources and assign "
+            "a confidence score for how strongly each source supports "
+            "the claim with respect to the research question."
+        ),
         "parameters": {
             "type": "object",
             "properties": {
-                "source_evaluations": {
+                "claims": {
                     "type": "array",
+                    "description": (
+                        "List of claims inferred from the sources. "
+                        "A source can produce multiple claims or none."
+                    ),
                     "items": {
                         "type": "object",
                         "properties": {
-                            "source_id": {
-                                "type": "integer",
-                                "description": "ID of the source"
+                            "claim": {
+                                "type": "string",
+                                "description": (
+                                    "A factual claim supported by the source"
+                                )
                             },
-                            "score": {
+                            "confidence_score": {
                                 "type": "integer",
                                 "minimum": 1,
                                 "maximum": 10,
-                                "description": "Relevance and reliability score of the source to question from 1 to "
+                                "description": (
+                                    "Confidence score indicating how strongly "
+                                    "the source supports the claim in relation "
+                                    "to the research question"
+                                )
                             },
-                            "reason": {
+                            "source_id": {
+                                "type": "integer",
+                                "description": "ID of the source supporting the claim"
+                            },
+                            "justification": {
                                 "type": "string",
-                                "description": "Reason for the relevance and reliability score"
-                            },
-                            "claims": {
-                                "type": "array",
-                                "items": {
-                                    "type": "string"
-                                },
-                                "description": "Claims which can be claimed using the sources"
+                                "description": (
+                                    "Short explanation of why the source "
+                                    "supports the claim"
+                                )
                             }
                         },
-                        "required": ["source_id", "score", "reason", "claims"],
+                        "required": [
+                            "claim",
+                            "confidence_score",
+                            "source_id",
+                            "justification"
+                        ],
                         "additionalProperties": False
                     }
                 }
             },
-            "required": ["questions_with_scores"],
+            "required": ["claims"],
+            "additionalProperties": False
+        }
+    }
+}
+
+SOURCE_VALIDATION_TOOL_ITER2 = {
+    "type": "function",
+    "function": {
+        "name": "validate_source_claims",
+        "description": (
+            "Extract claims supported by the provided sources and assign "
+            "a confidence score for how strongly each source supports "
+            "the claim with respect to the research question. "
+            "Use the additional instructions to generate claims."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "claims": {
+                    "type": "array",
+                    "description": (
+                        "List of claims inferred from the sources. "
+                        "A source can produce multiple claims or none."
+                    ),
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "claim": {
+                                "type": "string",
+                                "description": (
+                                    "A factual claim supported by the source"
+                                )
+                            },
+                            "confidence_score": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 10,
+                                "description": (
+                                    "Confidence score indicating how strongly "
+                                    "the source supports the claim in relation "
+                                    "to the research question"
+                                )
+                            },
+                            "source_id": {
+                                "type": "integer",
+                                "description": "ID of the source supporting the claim"
+                            },
+                            "justification": {
+                                "type": "string",
+                                "description": (
+                                    "Short explanation of why the source "
+                                    "supports the claim"
+                                )
+                            }
+                        },
+                        "required": [
+                            "claim",
+                            "confidence_score",
+                            "source_id",
+                            "justification"
+                        ],
+                        "additionalProperties": False
+                    }
+                }
+            },
+            "required": ["claims"],
             "additionalProperties": False
         }
     }
@@ -178,25 +262,56 @@ SOURCE_VALIDATION_TOOL = {
 
 
 
+# REFLECTION_TOOL = {
+#     "type": "function",
+#     "function": {
+#         "name": "reflect_on_sources",
+#         "description": "Reflect on the validated sources and determine if more research is needed. Provide instructions to generate new sub-questions for the next iteration if needed.",
+#         "parameters": {
+#             "type": "object",
+#             "properties": {
+#                 "info_needed": {
+#                     "type": "boolean",
+#                     "description": "Whether more information is needed"
+#                 },
+#                 "instructions": {
+#                     "type": "string",
+#                     "description": "Instructions to generate new sub-questions for the next iteration if more information is needed"
+#                 }
+#             },
+#             "required": ["info_needed", "instructions"],
+#             "additionalProperties": False
+#         }
+#     }
+# }
+
 REFLECTION_TOOL = {
     "type": "function",
     "function": {
-        "name": "reflect_on_sources",
-        "description": "Reflect on the validated sources and determine if more research is needed. Provide instructions to generate new sub-questions for the next iteration if needed.",
+        "name": "reflect_on_claims",
+        "description": "Determine the next workflow node based on validated claims.",
         "parameters": {
             "type": "object",
             "properties": {
-                "info_needed": {
-                    "type": "boolean",
-                    "description": "Whether more information is needed"
+                "next_node": {
+                    "type": "string",
+                    "enum": [
+                        "validation_node",
+                        "decomposer_node"
+                    ]
+                },
+                "reasoning": {
+                    "type": "string"
                 },
                 "instructions": {
-                    "type": "string",
-                    "description": "Instructions to generate new sub-questions for the next iteration if more information is needed"
+                    "type": "string"
                 }
             },
-            "required": ["info_needed", "instructions"],
-            "additionalProperties": False
+            "required": [
+                "next_node",
+                "reasoning",
+                "instructions"
+            ]
         }
     }
 }

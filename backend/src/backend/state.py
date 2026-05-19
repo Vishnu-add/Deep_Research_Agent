@@ -36,6 +36,8 @@ class ResearchState(TypedDict):
 
     wikipedia_search_all_sources : list
     new_wikipedia_search_sources : list
+    loop_node: str
+    direct_answer: str
 
 
 # class ResearchState(TypedDict):
