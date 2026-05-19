@@ -44,11 +44,11 @@ const emit = defineEmits<{
     <template v-else-if="isToolUIPart(part)">
       <ChatToolChart
         v-if="getToolName(part) === 'chart'"
-        :invocation="{ ...(part as ChartUIToolInvocation) }"
+        :invocation="(part as ChartUIToolInvocation)"
       />
       <ChatToolWeather
         v-else-if="getToolName(part) === 'weather'"
-        :invocation="{ ...(part as WeatherUIToolInvocation) }"
+        :invocation="(part as WeatherUIToolInvocation)"
       />
       <UChatTool
         v-else-if="getToolName(part) === 'web_search' || getToolName(part) === 'google_search'"

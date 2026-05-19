@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import { useIntervalFn } from '@vueuse/core'
+import { ref, watchEffect } from 'vue'
+import { useIntervalFn, useMediaQuery } from '@vueuse/core'
 
 const size = 4
 const gap = 2
@@ -13,25 +13,29 @@ const patterns = [
   [[0], [1, 4], [2, 5, 8], [3, 6, 9, 12], [7, 10, 13], [11, 14], [15]]
 ]
 
+const staticGlyph = new Set([5, 6, 9, 10])
 const activeDots = ref<Set<number>>(new Set())
+const reduced = useMediaQuery('(prefers-reduced-motion: reduce)')
 let patternIndex = 0
 let stepIndex = 0
 
 function nextStep() {
   const pattern = patterns[patternIndex]
   if (!pattern) return
-
   activeDots.value = new Set(pattern[stepIndex])
   stepIndex++
-
   if (stepIndex >= pattern.length) {
     stepIndex = 0
     patternIndex = (patternIndex + 1) % patterns.length
   }
 }
 
-nextStep()
-useIntervalFn(nextStep, 120)
+const { pause, resume } = useIntervalFn(nextStep, 120, { immediate: false })
+
+watchEffect(() => {
+  if (reduced.value) { pause(); activeDots.value = staticGlyph }
+  else { resume(); if (activeDots.value.size === 0) nextStep() }
+})
 </script>
 
 <template>

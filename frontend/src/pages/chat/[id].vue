@@ -48,10 +48,7 @@ const chat = new Chat({
   transport: new DefaultChatTransport({
     api: `/api/research/${data?.id}`,
     headers: { [headerName]: csrf() },
-    body: {
-      model: model.value,
-      session_id: data?.id
-    }
+    body: () => ({ model: model.value, session_id: data?.id })
   }),
   onData: (dataPart) => {
     if (dataPart.type === 'data-chat-title') {
@@ -251,7 +248,7 @@ onMounted(() => {
           @submit="handleSubmit"
         >
           <template #footer>
-            <ModelSelect v-model="model" />
+            <ModelSelect />
 
             <UChatPromptSubmit
               :status="chat.status"

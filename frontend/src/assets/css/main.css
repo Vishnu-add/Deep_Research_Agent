@@ -9,10 +9,29 @@
   body {
     @apply bg-neutral-50 dark:bg-neutral-950;
   }
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  a[href],
+  summary,
+  label[for],
+  [type="checkbox"],
+  [type="radio"] { cursor: pointer; }
 }
 
 :root {
   --ui-container: var(--container-3xl);
+  --vis-tooltip-padding: 0 !important;
+  --vis-tooltip-background-color: transparent !important;
+  --vis-tooltip-border-color: transparent !important;
+  --vis-axis-grid-color: rgba(255, 255, 255, 0) !important;
+  --vis-axis-tick-label-color: var(--ui-text-muted) !important;
+  --vis-axis-label-color: var(--ui-text-toned) !important;
+  --vis-legend-label-color: var(--ui-text-muted) !important;
+  --dot-pattern-color: #111827;
+}
+
+.dark {
+  --dot-pattern-color: #9ca3af;
 }
 
 html.dark .shiki span {
@@ -21,4 +40,8 @@ html.dark .shiki span {
   font-style: var(--shiki-dark-font-style) !important;
   font-weight: var(--shiki-dark-font-weight) !important;
   text-decoration: var(--shiki-dark-text-decoration) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
 }

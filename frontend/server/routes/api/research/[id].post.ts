@@ -29,7 +29,7 @@ async function genTitle(msg: string): Promise<string> {
       })
     })
     if (!res.ok) return fallback
-    const j: any = await res.json()
+    const j = await res.json() as { message?: { content?: string } }
     const first = (j?.message?.content || '').replace(/<think>[\s\S]*?<\/think>/g, '').trim().split('\n')[0].trim()
     if (!first || REFUSAL.test(first)) return fallback
     return first.slice(0, 30).replace(/["':\n]/g, '') || fallback
@@ -58,10 +58,13 @@ function extractObjects(buf: string): { objs: string[], rest: string } {
   return { objs, rest }
 }
 
+type Part = UIMessage['parts'][number]
+const isText = (p: Part): p is Extract<Part, { type: 'text' }> => p.type === 'text'
+
 function lastUserText(msgs: UIMessage[]): string {
   for (let i = msgs.length - 1; i >= 0; i--) {
     const m = msgs[i]
-    if (m?.role === 'user') return (m.parts || []).filter((p: any) => p.type === 'text').map((p: any) => p.text).join('\n')
+    if (m?.role === 'user') return (m.parts || []).filter(isText).map(p => p.text).join('\n')
   }
   return ''
 }
@@ -83,7 +86,7 @@ export default defineHandler(async (event) => {
   if (!chat) throw new HTTPError({ statusCode: 404, statusMessage: 'Chat not found' })
 
   const titleP: Promise<string> | null = chat.title ? null : (async () => {
-    const first = (messages[0]?.parts || []).filter((p: any) => p.type === 'text').map((p: any) => p.text).join('\n')
+    const first = (messages[0]?.parts || []).filter(isText).map(p => p.text).join('\n')
     const t = await genTitle(first)
     await db.update(tables.chats).set({ title: t }).where(eq(tables.chats.id, id))
     return t
@@ -110,12 +113,13 @@ export default defineHandler(async (event) => {
       let rOpen = false, tOpen = false
       writer.write({ type: 'start' })
       if (titleP) titleP.then(t => { try { writer.write({ type: 'data-chat-title', data: { message: t }, transient: true }) } catch {} }).catch(() => {})
+      const sig = AbortSignal.any([event.req.signal, AbortSignal.timeout(60000)])
       try {
         const res = await fetch(BACKEND_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ question: q, max_iterations: MAX_ITER, session_id: sid, model }),
-          signal: event.req.signal
+          signal: sig
         })
         if (!res.ok || !res.body) throw new Error(`Backend ${res.status}`)
         const reader = res.body.getReader()
@@ -164,10 +168,11 @@ export default defineHandler(async (event) => {
         }
         if (rOpen) { writer.write({ type: 'reasoning-end', id: rid }); rOpen = false }
         if (tOpen) { writer.write({ type: 'text-end', id: tid }); tOpen = false }
-      } catch (e: any) {
+      } catch (e: unknown) {
         if (rOpen) { writer.write({ type: 'reasoning-end', id: rid }); rOpen = false }
         if (!tOpen) { writer.write({ type: 'text-start', id: tid }); tOpen = true }
-        writer.write({ type: 'text-delta', id: tid, delta: `Error: ${e?.message || 'stream failed'}` })
+        const msg = e instanceof Error ? e.message : 'stream failed'
+        writer.write({ type: 'text-delta', id: tid, delta: `Error: ${msg}` })
         writer.write({ type: 'text-end', id: tid })
       }
       writer.write({ type: 'finish' })

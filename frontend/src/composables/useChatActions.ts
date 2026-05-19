@@ -1,4 +1,5 @@
 import { defineAsyncComponent } from 'vue'
+import { createSharedComposable } from '@vueuse/core'
 import { useRoute, useRouter } from 'vue-router'
 import { $fetch } from 'ofetch'
 import { useChats } from './useChats'
@@ -7,7 +8,7 @@ import { useCsrf } from './useCsrf'
 const ModalRename = defineAsyncComponent(() => import('../components/ModalRename.vue'))
 const ModalConfirm = defineAsyncComponent(() => import('../components/ModalConfirm.vue'))
 
-export function useChatActions() {
+export const useChatActions = createSharedComposable(() => {
   const route = useRoute()
   const router = useRouter()
   const toast = useToast()
@@ -138,4 +139,4 @@ export function useChatActions() {
     deleteChat,
     deleteChatsBelow
   }
-}
+})

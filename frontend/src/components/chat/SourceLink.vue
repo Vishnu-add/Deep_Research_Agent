@@ -10,6 +10,7 @@ defineProps<{
   <UButton
     :to="url"
     target="_blank"
+    rel="noopener noreferrer"
     :avatar="{ src: favicon }"
     :label="label"
     trailing-icon="i-lucide-arrow-up-right"

@@ -8,7 +8,7 @@ const props = defineProps<{
 
 const color = computed(() => {
   return ({
-    'output-available': 'bg-gradient-to-br from-sky-400 via-blue-500 to-indigo-600 dark:from-sky-500 dark:via-blue-600 dark:to-indigo-700 text-white',
+    'output-available': 'bg-gradient-to-br from-sky-600 via-blue-700 to-indigo-800 dark:from-sky-700 dark:via-blue-800 dark:to-indigo-900 text-white',
     'output-error': 'bg-muted text-error'
   })[props.invocation.state as string] || 'bg-muted text-white'
 })

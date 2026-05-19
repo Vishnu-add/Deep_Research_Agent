@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { $fetch } from 'ofetch'
-import { useClipboard } from '@vueuse/core'
+import { useClipboard, useTimeoutFn } from '@vueuse/core'
 import { useCsrf } from '../../composables/useCsrf'
 
 const props = defineProps<{
@@ -63,13 +63,12 @@ async function updateVisibility(value: 'public' | 'private') {
 }
 
 const copied = ref(false)
+const { start: startReset } = useTimeoutFn(() => { copied.value = false }, 2000, { immediate: false })
 
 function copyLink() {
   clipboard.copy(shareUrl.value)
   copied.value = true
-  setTimeout(() => {
-    copied.value = false
-  }, 2000)
+  startReset()
 }
 </script>
 
@@ -127,6 +126,7 @@ function copyLink() {
         <a
           :href="shareUrl"
           target="_blank"
+          rel="noopener noreferrer"
           class="flex-1 truncate text-sm text-muted pl-1"
         >
           {{ shareUrl }}

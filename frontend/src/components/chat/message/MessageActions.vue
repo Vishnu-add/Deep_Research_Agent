@@ -2,7 +2,7 @@
 import { ref, computed } from 'vue'
 import type { UIMessage } from 'ai'
 import { isFileUIPart } from 'ai'
-import { useClipboard } from '@vueuse/core'
+import { useClipboard, useTimeoutFn } from '@vueuse/core'
 import { getTextFromMessage } from '@nuxt/ui/utils/ai'
 
 const props = defineProps<{
@@ -35,15 +35,12 @@ const hasFiles = computed(() => props.message.parts.some(isFileUIPart))
 const clipboard = useClipboard()
 
 const copied = ref(false)
+const { start: startReset } = useTimeoutFn(() => { copied.value = false }, 2000, { immediate: false })
 
 function copy() {
   clipboard.copy(getTextFromMessage(props.message))
-
   copied.value = true
-
-  setTimeout(() => {
-    copied.value = false
-  }, 2000)
+  startReset()
 }
 </script>
 

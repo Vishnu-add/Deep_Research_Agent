@@ -151,24 +151,7 @@ const formatValue = (value: string | number | undefined): string => {
   </div>
 </template>
 
-<style>
-:root {
-  --vis-tooltip-padding: 0 !important;
-  --vis-tooltip-background-color: transparent !important;
-  --vis-tooltip-border-color: transparent !important;
-
-  --vis-axis-grid-color: rgba(255, 255, 255, 0) !important;
-  --vis-axis-tick-label-color: var(--ui-text-muted) !important;
-  --vis-axis-label-color: var(--ui-text-toned) !important;
-  --vis-legend-label-color: var(--ui-text-muted) !important;
-
-  --dot-pattern-color: #111827;
-}
-
-.dark {
-  --dot-pattern-color: #9ca3af;
-}
-
+<style scoped>
 .dot-pattern {
   position: absolute;
   background-image: radial-gradient(var(--dot-pattern-color) 1px, transparent 1px);

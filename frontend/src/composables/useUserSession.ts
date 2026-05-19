@@ -1,5 +1,5 @@
 import { createSharedComposable } from '@vueuse/core'
-import { ref, computed } from 'vue'
+import { ref, computed, onScopeDispose } from 'vue'
 import type { UserSession } from '../../server/utils/session'
 import { $fetch } from 'ofetch'
 import { useCsrf } from './useCsrf'
@@ -46,6 +46,7 @@ export const useUserSession = createSharedComposable(() => {
     )
 
     window.addEventListener('storage', popupListener)
+    onScopeDispose(() => window.removeEventListener('storage', popupListener))
   }
 
   return {

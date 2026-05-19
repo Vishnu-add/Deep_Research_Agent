@@ -14,15 +14,18 @@ const input = ref('')
 const loading = ref(false)
 const router = useRouter()
 
+const G = {
+  en: { morning: 'Good morning', afternoon: 'Good afternoon', evening: 'Good evening' },
+  fr: { morning: 'Bonjour', afternoon: 'Bon après-midi', evening: 'Bonsoir' }
+} as const
+
 const greeting = computed(() => {
-  const hour = new Date().getHours()
-  let timeGreeting = 'Good evening'
-  if (hour < 12) timeGreeting = 'Good morning'
-  else if (hour < 18) timeGreeting = 'Good afternoon'
-
+  const h = new Date().getHours()
+  const p = h < 12 ? 'morning' : h < 18 ? 'afternoon' : 'evening'
+  const lang = (document.documentElement.lang || 'en').toLowerCase().startsWith('fr') ? 'fr' : 'en'
+  const t = G[lang][p]
   const name = user.value?.name?.split(' ')[0] || user.value?.username
-
-  return name ? `${timeGreeting}, ${name}` : `${timeGreeting}`
+  return name ? `${t}, ${name}` : t
 })
 
 async function createChat(prompt: string) {
