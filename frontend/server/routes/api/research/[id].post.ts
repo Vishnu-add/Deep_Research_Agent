@@ -113,13 +113,12 @@ export default defineHandler(async (event) => {
       let rOpen = false, tOpen = false
       writer.write({ type: 'start' })
       if (titleP) titleP.then(t => { try { writer.write({ type: 'data-chat-title', data: { message: t }, transient: true }) } catch {} }).catch(() => {})
-      const sig = AbortSignal.any([event.req.signal, AbortSignal.timeout(60000)])
       try {
         const res = await fetch(BACKEND_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ question: q, max_iterations: MAX_ITER, session_id: sid, model }),
-          signal: sig
+          signal: event.req.signal
         })
         if (!res.ok || !res.body) throw new Error(`Backend ${res.status}`)
         const reader = res.body.getReader()
