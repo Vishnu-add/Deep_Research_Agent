@@ -51,6 +51,11 @@ import os
 import random
 from copy import deepcopy
 import arxiv
+import wikipedia as wp
+from langfuse.langchain import CallbackHandler
+from langfuse import observe
+
+logger = setup_logger(__name__)
 
 LANGFUSE_SECRET_KEY="sk-lf-f3310337-d8ec-4364-84ac-1668d59ba380"
 LANGFUSE_PUBLIC_KEY="pk-lf-2c8a83a3-a53f-44ea-a333-0730ecadc80b"
@@ -60,21 +65,28 @@ os.environ["LANGFUSE_SECRET_KEY"] = LANGFUSE_SECRET_KEY
 os.environ["LANGFUSE_PUBLIC_KEY"] = LANGFUSE_PUBLIC_KEY
 os.environ["LANGFUSE_BASE_URL"] = LANGFUSE_BASE_URL
 
-# Initialize Langfuse client
-langfuse = get_client()
+try:
+    # Initialize Langfuse client
+    langfuse = get_client()
+    # Verify connection
+    if langfuse.auth_check():
+        logger.info("Langfuse client is authenticated and ready!")
+    else:
+        logger.info("Authentication failed. Please check your credentials and host.")
+except Exception as e:
+    langfuse = None
+    logger.info(f"ERROR initializing langfuse client")
 
-arxiv_client = arxiv.Client()
+try:
+    arxiv_client = arxiv.Client()
+except Exception as e:
+    arxiv_client = None
+    logger.info(f"ERROR initializong arxiv client")
 
-from langfuse.langchain import CallbackHandler
-from langfuse import observe
+
 # Initialize Langfuse CallbackHandler for Langchain (tracing)
 langfuse_handler = CallbackHandler()
 
-# Verify connection
-if langfuse.auth_check():
-    print("Langfuse client is authenticated and ready!")
-else:
-    print("Authentication failed. Please check your credentials and host.")
 
 WEB_SEARCH_TOOL_NAME = "web_search"
 SCIENTIFIC_SEARCH_TOOL_NAME = "arxiv"
@@ -83,7 +95,7 @@ WIKI_SEARCH_TOOL_NAME = "wikipedia"
 MODEL_NAME = "qwen3:8b"
 TEMPERATURE = 0
 MAX_SEARCH_RESULTS = 5
-MAX_LOOPS = 1
+MAX_LOOPS = 2
 RELEVANCE_THRESHOLD = 8
 OUTPUT_DIR = "outputs"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -96,13 +108,14 @@ def save_json(path, data):
         json.dump(data, f, indent=4)
 
 
-logger = setup_logger(__name__)
+
 
 class DeepResearchAgent:
     def __init__(self):
         self.llm = ChatOllama(
             model=MODEL_NAME,
-            temperature=TEMPERATURE
+            temperature=TEMPERATURE,
+            reasoning=False
         )
         # self.llm = 
 
@@ -420,53 +433,73 @@ class DeepResearchAgent:
 
     def web_search_tool_node(self, state: ResearchState):
         """Executes the search for each subquery and retrieves relevant sources."""
+        if not state.get("new_subqueries",{}).get(WEB_SEARCH_TOOL_NAME,[]):
+            logger.info(f"=== No Web Search questions skippoing Tool call =====")
+            return {
+                "web_search_all_sources": state.get("web_search_all_sources",[]),
+                "new_web_search_sources": [],
+                "prev_node": ["web_search_node"],
+                "next_node": ["validation_node"]
+            }
+       
         self.writer = get_stream_writer()
         self.writer({"status": random.choice(SEARCH_MESSAGES)})
         logger.info(f"=== SEARCH NODE {state['loop_count']} ===")
         #logger.info(f"Current state:{state}")
+        try:
+            web_search_all_sources = []
 
-        web_search_all_sources = []
+            counter = 0
 
-        counter = 0
+            for q in state["new_subqueries"].get(WEB_SEARCH_TOOL_NAME,[]):
 
-        for q in state["new_subqueries"].get(WEB_SEARCH_TOOL_NAME,[]):
+                try:
 
-            try:
+                    results = self.search_tool.run(str(q))
 
-                results = self.search_tool.run(str(q))
+                except Exception as e:
+                    logger.info(f"ERROR during WEB search : {e}")
+                    results = str(e)
 
-            except Exception as e:
+                web_search_all_sources.append({
+                    "question": q,
+                    "source_id": f"{state['loop_count']}_{counter}-{WEB_SEARCH_TOOL_NAME}",
+                    "sources": results,
+                    "from_tool": WEB_SEARCH_TOOL_NAME
+                })
+                counter += 1
 
-                results = str(e)
+            # state["sources"] = all_sources
 
-            web_search_all_sources.append({
-                "question": q,
-                "question_id": f"{state['loop_count']}_{counter}-{WEB_SEARCH_TOOL_NAME}",
-                "sources": results,
-                "from_tool": WEB_SEARCH_TOOL_NAME
-            })
-            counter += 1
+            session_folder = state["session_folder"]        
 
-        # state["sources"] = all_sources
+            filename = f"{session_folder}/A5_raw_{WEB_SEARCH_TOOL_NAME}_sources.json"
+            save_json(
+                filename,
+                web_search_all_sources
+            )
 
-        session_folder = state["session_folder"]        
-
-        filename = f"{session_folder}/A5_raw_{WEB_SEARCH_TOOL_NAME}_sources.json"
-        save_json(
-            filename,
-            web_search_all_sources
-        )
-
-        return {
-            "web_search_all_sources": state.get("web_search_all_sources",[]) + web_search_all_sources,
-            "new_web_search_sources": web_search_all_sources,
-            "prev_node": ["web_search_node"],
-            "next_node": ["validation_node"]
-        }
+            return {
+                "web_search_all_sources": state.get("web_search_all_sources",[]) + web_search_all_sources,
+                "new_web_search_sources": web_search_all_sources,
+                "prev_node": ["web_search_node"],
+                "next_node": ["validation_node"]
+            }
+        except Expectation as e:
+            logger.info(f"Exception in web search tool node : {e}")
+            return state
     
     def scientific_search_tool_node(self, state: ResearchState):
         """Executes the search for each subquery and retrieves relevant sources from scientific databases."""
-                
+        
+        if not state.get("new_subqueries",{}).get(SCIENTIFIC_SEARCH_TOOL_NAME,[]):
+            logger.info(f"=== No Scientific questions skippoing Tool call =====")
+            return {
+                "scientific_search_all_sources": state.get("scientific_search_all_sources",[]),
+                "new_scientific_search_sources": [],
+                "prev_node": ["arxiv_search_node"],
+                "next_node": ["validation_node"]
+            }
        
 
         self.writer = get_stream_writer()
@@ -486,16 +519,16 @@ class DeepResearchAgent:
                     query=q,
                     max_results=10
                 )
-                search_results = list(client.results(search))
+                search_results = list(arxiv_client.results(search))
                 results = "\n\n".join([paper.summary for paper in search_results])
 
             except Exception as e:
-
+                logger.info(f"Error during SCIENTIFIC search : {e}")
                 results = str(e)
 
             scientific_search_all_sources.append({
                 "question": q,
-                "question_id": f"{state['loop_count']}_{counter}-{SCIENTIFIC_SEARCH_TOOL_NAME}",
+                "source_id": f"{state['loop_count']}_{counter}-{SCIENTIFIC_SEARCH_TOOL_NAME}",
                 "sources": results,
                 "from_tool": SCIENTIFIC_SEARCH_TOOL_NAME
             })
@@ -518,10 +551,16 @@ class DeepResearchAgent:
             "next_node": ["validation_node"]
         }
 
-        pass
-
     def wikipedia_search_tool_node(self, state: ResearchState):
         """Executes the search for each subquery and retrieves relevant sources from Wikipedia."""
+        if not state.get("new_subqueries",{}).get(WIKI_SEARCH_TOOL_NAME,[]):
+            logger.info(f"=== No WIKI questions skippoing Tool call =====")
+            return {
+                "wikipedia_search_all_sources": state.get("wikipedia_search_all_sources",[]),
+                "new_wikipedia_search_sources": [],
+                "prev_node": ["wiki_search_node"],
+                "next_node": ["validation_node"]
+            }
         self.writer = get_stream_writer()
         self.writer({"status": random.choice(WIKI_SEARCH_MESSAGES)})
         logger.info(f"=== WIKI SEARCH NODE {state['loop_count']} ===")
@@ -534,7 +573,7 @@ class DeepResearchAgent:
         for q in state["new_subqueries"].get(WIKI_SEARCH_TOOL_NAME,[]):
             results = []
             try:
-                for term in wp.search(query, results = 10):
+                for term in wp.search(q, results = 10):
                     try:
                         # print("Searching")
                         page = wp.page(term, auto_suggest=False)
@@ -548,11 +587,12 @@ class DeepResearchAgent:
                     if len(results) >= 2:
                         break
             except Exception as e:
+                logger.info(f"Error during WIKI search : {e}")
                 results = [str(e)]
 
             wikipedia_search_all_sources.append({
                 "question": q,
-                "question_id": f"{state['loop_count']}_{counter}-{WIKI_SEARCH_TOOL_NAME}",
+                "source_id": f"{state['loop_count']}_{counter}-{WIKI_SEARCH_TOOL_NAME}",
                 "sources": "\n\n".join([doc["page_content"] for doc in results]),
                 "from_tool": WIKI_SEARCH_TOOL_NAME
             })
@@ -621,6 +661,7 @@ class DeepResearchAgent:
         response = None
         for i in range(3):
             response = llm_tool.invoke(messages)
+            logger.info(f"Response : {response}")
 
             tool_calls = response.tool_calls
             response_content = response.content
@@ -640,19 +681,19 @@ class DeepResearchAgent:
                 "new_validated_sources": state["sources"]
             }
 
-        parsed = response.tool_calls[0].get("args", {}).get("questions_with_scores", [])
+        parsed = response.tool_calls[0].get("args", {}).get("source_evaluations", [])
 
         # logger.info(f"Parsed validation:{parsed}")
 
-        filtered_question_ids = []
+        filtered_source_ids = []
         filtered_sources = []
 
         for item in parsed:
             if item["score"] >= RELEVANCE_THRESHOLD:
-                filtered_question_ids.append(item.get("question_id",""))
+                filtered_source_ids.append(item.get("source_id",""))
 
-        for src in state["new_sources"]:
-            if src["question_id"] in filtered_question_ids:
+        for src in state.get("new_web_search_sources",[]) + state.get("new_scientific_search_sources",[]) + state.get("new_wikipedia_search_sources",[]):
+            if src["source_id"] in filtered_source_ids:
                 filtered_sources.append(src)
 
         # state["validated_sources"] = filtered_sources

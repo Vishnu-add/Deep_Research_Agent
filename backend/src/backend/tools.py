@@ -138,20 +138,20 @@ SOURCE_VALIDATION_TOOL = {
         "parameters": {
             "type": "object",
             "properties": {
-                "questions_with_scores": {
+                "source_evaluations": {
                     "type": "array",
                     "items": {
                         "type": "object",
                         "properties": {
-                            "question_id": {
+                            "source_id": {
                                 "type": "integer",
-                                "description": "ID of the question"
+                                "description": "ID of the source"
                             },
                             "score": {
                                 "type": "integer",
                                 "minimum": 1,
                                 "maximum": 10,
-                                "description": "Relevance and reliability score from 1 to 10"
+                                "description": "Relevance and reliability score of the source to question from 1 to "
                             },
                             "reason": {
                                 "type": "string",
@@ -165,7 +165,7 @@ SOURCE_VALIDATION_TOOL = {
                                 "description": "Claims which can be claimed using the sources"
                             }
                         },
-                        "required": ["question_id", "score", "reason"],
+                        "required": ["source_id", "score", "reason", "claims"],
                         "additionalProperties": False
                     }
                 }
