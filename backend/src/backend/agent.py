@@ -592,12 +592,12 @@ class DeepResearchAgent:
                         break
             except Exception as e:
                 logger.info(f"Error during WIKI search : {e}")
-                results = [str(e)]
+                results = [{ "error": str(e) }]
 
             wikipedia_search_all_sources.append({
                 "question": q,
                 "source_id": f"{state['loop_count']}_{counter}-{WIKI_SEARCH_TOOL_NAME}",
-                "sources": "\n\n".join([doc["page_content"] for doc in results]),
+                "sources": "\n\n".join([doc.get("page_content","") for doc in results]),
                 "from_tool": WIKI_SEARCH_TOOL_NAME
             })
             counter += 1
@@ -865,6 +865,9 @@ class DeepResearchAgent:
         #logger.info(f"Current state:{state}")
         self.writer = get_stream_writer()
 
+        if state["loop_count"] >= MAX_LOOPS+1:
+            self.writer({"status": "Maximum loop count reached. Proceeding to synthesis."})
+            return "synthesis_node"
         if state.get("loop_node","") == "decomposer_node":
             self.writer({"status": "More information needed. Looping back to decomposer."})
             return "decomposer_node"
@@ -872,9 +875,6 @@ class DeepResearchAgent:
             self.writer({"status": "Claims not retrieved properly. Looping back to validation."})
             return "validation_node"
 
-        if state["loop_count"] >= MAX_LOOPS+1:
-            self.writer({"status": "Maximum loop count reached. Proceeding to synthesis."})
-            return "synthesis_node"
 
         self.writer({"status": "No more information needed. Proceeding to synthesis."})
         return "synthesis_node"
