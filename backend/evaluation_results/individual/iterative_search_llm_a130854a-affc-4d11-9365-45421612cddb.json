@@ -1,0 +1,29 @@
+{
+    "architecture_name": "iterative_search_llm",
+    "context_relevance": {
+        "score": {
+            "description": "Context Relevance score from 0 to 10",
+            "type": "integer"
+        },
+        "reason": {
+            "description": "Very short reason for the score",
+            "type": "string"
+        }
+    },
+    "answer_relevance": {
+        "score": 10,
+        "reason": "The final answer comprehensively addresses the user's question by comparing Ollama and vLLM across multiple dimensions such as deployment focus, hardware requirements, performance, architecture, and use cases. It provides a clear and structured comparison, making it highly relevant and informative."
+    },
+    "faithfulness_groundedness": {
+        "score": 10,
+        "reason": "The final answer is well-supported by the validated sources, which provide detailed comparisons between Ollama and vLLM in terms of deployment focus, hardware requirements, performance, and design philosophy. There are no hallucinations or unsupported claims."
+    },
+    "decomposition_quality": {
+        "score": 0,
+        "reason": "No decomposition used"
+    },
+    "reflection_self_correction_quality": {
+        "score": 0,
+        "reason": "No reflection used"
+    }
+}
