@@ -800,10 +800,14 @@ class DeepResearchAgent:
         {query}
         Validated Sources:
         {validated_sources}
+        Conversation History:
+        {conversation_history}
         """
         USER_PROMPT_SIMPLE = """
         Question:
         {query}
+        Conversation History:
+        {conversation_history}
         """
         # if state["prev_node"] and state["prev_node"][0] == "pre_planner_node":
         if state.get("direct_answer","False") == "True":
@@ -818,7 +822,7 @@ class DeepResearchAgent:
         self.writer({"status": random.choice(SYNTHESIS_MESSAGES)})
         messages = [
             SystemMessage(content=SYNTHESIS_PROMPT),
-            HumanMessage(content=USER_PROMPT.format(query=state["query"], validated_sources=state["validated_sources"]))
+            HumanMessage(content=USER_PROMPT.format(query=state["query"], validated_sources=state["validated_sources"], conversation_history=state["messages"]))
         ]
         response = self.llm.invoke(messages)
 
