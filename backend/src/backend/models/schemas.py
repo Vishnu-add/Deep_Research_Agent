@@ -35,3 +35,6 @@ class EvaluationResult(BaseModel):
     f1_score: float
     supporting_fact_em: float
     supporting_fact_f1: float
+
+class BenchmarkRequest(BaseModel):
+    query: str
