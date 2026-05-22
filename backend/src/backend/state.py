@@ -1,5 +1,6 @@
 from typing import TypedDict, List, Dict, Any, Optional
-
+import operator
+from typing import Annotated
 
 class ResearchState(TypedDict):
     query: str
@@ -9,7 +10,7 @@ class ResearchState(TypedDict):
     instructions: str
     subqueries: list
     new_subqueries: list
-    sources: list
+    sources: dict
     new_sources: list
     validated_sources: list
     new_validated_sources: list

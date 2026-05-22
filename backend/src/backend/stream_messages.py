@@ -22,6 +22,22 @@ SEARCH_MESSAGES = [
     "Exploring databases and resources to find answers to the sub-questions..."
 ]
 
+ARXIV_SEARCH_MESSAGES = [
+    "Searching arXiv for relevant academic papers...",
+    "Retrieving research papers from arXiv related to the sub-questions...",
+    "Exploring arXiv to find scholarly articles and preprints...",
+    "Gathering academic sources from arXiv to support the research...",
+    "Identifying relevant scientific publications from arXiv..."
+]
+
+WIKI_SEARCH_MESSAGES = [
+    "Searching Wikipedia for foundational and contextual information...",
+    "Retrieving relevant Wikipedia articles related to the sub-questions...",
+    "Exploring Wikipedia to gather background knowledge on the topic...",
+    "Gathering encyclopedic information from Wikipedia sources...",
+    "Identifying key Wikipedia articles to support the research process..."
+]
+
 VALIDATION_MESSAGES = [
     "Validating the relevance and reliability of the sources...",
     "Evaluating the provided sources for their relevance and reliability...",

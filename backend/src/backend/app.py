@@ -74,14 +74,17 @@ async def ask_question(request: QuestionRequest):
 @app.post("/get_stream")
 async def get_stream(request: QuestionRequest):
     try:
-        config = {"configurable": {"thread_id": request.session_id}}
+        config = {
+            "configurable": {"thread_id": request.session_id},
+            "callbacks": [langfuse_handler]
+        }
         initial_state = ResearchState(
             query=request.question,
             messages=[HumanMessage(content=request.question)],
             all_messages=[HumanMessage(content=request.question)],
             plan="",
             instructions="",
-            subqueries=[],
+            subqueries={},
             sources=[],
             validated_sources=[],
             reflection={},
