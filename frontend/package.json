@@ -12,10 +12,6 @@
     "db:migrate": "drizzle-kit migrate"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "^3.0.76",
-    "@ai-sdk/gateway": "^3.0.112",
-    "@ai-sdk/google": "^3.0.71",
-    "@ai-sdk/openai": "^3.0.63",
     "@ai-sdk/vue": "^3.0.177",
     "@comark/vue": "^0.3.1",
     "@iconify/vue": "^5.0.1",
@@ -23,7 +19,6 @@
     "@nuxt/ui": "^4.7.1",
     "@shikijs/langs": "^4.0.2",
     "@unhead/vue": "^2.1.15",
-    "@unovis/vue": "^1.6.5",
     "@vueuse/core": "^14.3.0",
     "ai": "^6.0.177",
     "date-fns": "^4.1.0",
@@ -35,7 +30,6 @@
     "tailwindcss": "^4.3.0",
     "ufo": "^1.6.4",
     "vue": "^3.5.34",
-    "vue-chrts": "^2.1.4",
     "vue-router": "^5.0.6",
     "zod": "^4.4.3"
   },

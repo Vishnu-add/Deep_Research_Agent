@@ -1,17 +1,11 @@
 <script setup lang="ts">
-import { isReasoningUIPart, isTextUIPart, isToolUIPart, getToolName } from 'ai'
+import { isReasoningUIPart, isTextUIPart } from 'ai'
 import type { UIMessage } from 'ai'
-import { isPartStreaming, isToolStreaming } from '@nuxt/ui/utils/ai'
+import { isPartStreaming } from '@nuxt/ui/utils/ai'
 import ChatComark from '../Comark'
 import ReasoningSteps from '../ReasoningSteps.vue'
-import ChatToolChart from '../tool/Chart.vue'
-import ChatToolWeather from '../tool/Weather.vue'
-import ChatToolSources from '../tool/Sources.vue'
 import ChatMessageEdit from './MessageEdit.vue'
 import { getMergedParts } from '../../../utils/ai'
-import { getSearchQuery, getSources } from '../../../utils/tool'
-import type { WeatherUIToolInvocation } from '../../../../server/utils/tools/weather'
-import type { ChartUIToolInvocation } from '../../../../server/utils/tools/chart'
 
 defineProps<{
   message: UIMessage
@@ -40,26 +34,6 @@ const emit = defineEmits<{
         :streaming="isPartStreaming(part)"
       />
     </UChatReasoning>
-
-    <template v-else-if="isToolUIPart(part)">
-      <ChatToolChart
-        v-if="getToolName(part) === 'chart'"
-        :invocation="(part as ChartUIToolInvocation)"
-      />
-      <ChatToolWeather
-        v-else-if="getToolName(part) === 'weather'"
-        :invocation="(part as WeatherUIToolInvocation)"
-      />
-      <UChatTool
-        v-else-if="getToolName(part) === 'web_search' || getToolName(part) === 'google_search'"
-        :text="isToolStreaming(part) ? 'Searching the web...' : 'Searched the web'"
-        :suffix="getSearchQuery(part)"
-        :streaming="isToolStreaming(part)"
-        chevron="leading"
-      >
-        <ChatToolSources :sources="getSources(part)" />
-      </UChatTool>
-    </template>
 
     <template v-else-if="isTextUIPart(part)">
       <ChatComark

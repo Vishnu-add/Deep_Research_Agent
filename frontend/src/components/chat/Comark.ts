@@ -18,8 +18,6 @@ import dockerfile from '@shikijs/langs/dockerfile'
 import xml from '@shikijs/langs/xml'
 import toml from '@shikijs/langs/toml'
 import graphql from '@shikijs/langs/graphql'
-import SourceLink from './SourceLink.vue'
-
 export default defineComarkComponent({
   name: 'ChatComark',
   plugins: [
@@ -27,8 +25,5 @@ export default defineComarkComponent({
       languages: [html, css, python, sql, go, rust, java, c, cpp, ruby, php, swift, kotlin, diff, dockerfile, xml, toml, graphql]
     })
   ],
-  components: {
-    'source-link': SourceLink
-  },
   class: '*:first:mt-0 *:last:mb-0'
 })

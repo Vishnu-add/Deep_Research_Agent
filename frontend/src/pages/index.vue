@@ -16,13 +16,19 @@ const router = useRouter()
 
 const G = {
   en: { morning: 'Good morning', afternoon: 'Good afternoon', evening: 'Good evening' },
-  fr: { morning: 'Bonjour', afternoon: 'Bon après-midi', evening: 'Bonsoir' }
+  fr: { morning: 'Bonjour', afternoon: 'Bon après-midi', evening: 'Bonsoir' },
+  no: { morning: 'God morgen', afternoon: 'God ettermiddag', evening: 'God kveld' },
+  hi: { morning: 'सुप्रभात', afternoon: 'नमस्ते', evening: 'शुभ संध्या' }
 } as const
 
 const greeting = computed(() => {
   const h = new Date().getHours()
   const p = h < 12 ? 'morning' : h < 18 ? 'afternoon' : 'evening'
-  const lang = (document.documentElement.lang || 'en').toLowerCase().startsWith('fr') ? 'fr' : 'en'
+  const docLang = (document.documentElement.lang || 'en').toLowerCase()
+  const lang = docLang.startsWith('fr') ? 'fr'
+    : docLang.startsWith('no') || docLang.startsWith('nb') || docLang.startsWith('nn') ? 'no'
+    : docLang.startsWith('hi') ? 'hi'
+    : 'en'
   const t = G[lang][p]
   const name = user.value?.name?.split(' ')[0] || user.value?.username
   return name ? `${t}, ${name}` : t
@@ -47,28 +53,19 @@ function onSubmit() {
 
 const quickChats = [
   {
-    label: 'What is photosynthesis?',
-    icon: 'i-lucide-leaf'
+    label: 'Test-Time vs Pre-training Scaling',
+    icon: 'i-lucide-cpu',
+    prompt: 'Investigate the performance-to-compute efficiency of Test-Time Scaling (System 2 thinking) versus traditional Pre-training Scaling Laws. Specifically, compare the cost-effectiveness of DeepSeek-R1\'s reinforcement learning approach against OpenAI o3\'s reasoning tiers for mathematical reasoning tasks.'
   },
   {
-    label: 'How does HTTP work?',
-    icon: 'i-lucide-globe'
+    label: 'Lost-in-the-Middle in Long-Context Models',
+    icon: 'i-lucide-search',
+    prompt: 'Analyze the \'Lost-in-the-Middle\' phenomenon in 2026\'s ultra-long context models (1M+ tokens). Compare the retrieval accuracy of Meta Llama 4 Scout (10M token window) against hybrid Mamba-Transformer (Jamba) architectures.'
   },
   {
-    label: 'Who painted the Mona Lisa?',
-    icon: 'i-lucide-palette'
-  },
-  {
-    label: 'What is machine learning?',
-    icon: 'i-lucide-brain'
-  },
-  {
-    label: 'What causes auroras?',
-    icon: 'i-lucide-sparkles'
-  },
-  {
-    label: 'Why is the sky blue?',
-    icon: 'i-lucide-cloud'
+    label: 'Early vs Late Fusion in VLMs',
+    icon: 'i-lucide-eye',
+    prompt: 'Evaluate the shift from Late Fusion to Early Fusion in 2026 Vision-Language Models (VLMs). Compare the visual grounding capabilities of Gemini 2.5 Pro and InternVL3-78B on the MMMU (Massive Multi-discipline Multimodal Understanding) benchmark.'
   }
 ]
 </script>
@@ -117,7 +114,7 @@ const quickChats = [
             color="neutral"
             variant="outline"
             class="rounded-full"
-            @click="createChat(quickChat.label)"
+            @click="createChat(quickChat.prompt ?? quickChat.label)"
           />
         </div>
       </UContainer>

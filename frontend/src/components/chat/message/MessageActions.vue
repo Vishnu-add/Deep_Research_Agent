@@ -57,28 +57,6 @@ function copy() {
       />
     </UTooltip>
 
-    <UTooltip text="Good response">
-      <UButton
-        size="sm"
-        :color="vote === true ? 'success' : 'neutral'"
-        variant="ghost"
-        icon="i-lucide-thumbs-up"
-        aria-label="Good response"
-        @click="emit('vote', message, true)"
-      />
-    </UTooltip>
-
-    <UTooltip text="Bad response">
-      <UButton
-        size="sm"
-        :color="vote === false ? 'error' : 'neutral'"
-        variant="ghost"
-        icon="i-lucide-thumbs-down"
-        aria-label="Bad response"
-        @click="emit('vote', message, false)"
-      />
-    </UTooltip>
-
     <UTooltip text="Regenerate response">
       <UButton
         size="sm"
