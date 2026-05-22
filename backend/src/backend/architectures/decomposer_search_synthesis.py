@@ -110,3 +110,4 @@ graph.add_edge("search_node", "synthesis_node")
 graph.add_edge("synthesis_node", END)
 
 app = graph.compile()
+app.get_graph().draw_mermaid_png(output_file_path="decomposer_search_synthesis.png")

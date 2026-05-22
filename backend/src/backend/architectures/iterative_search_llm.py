@@ -131,3 +131,4 @@ graph.add_conditional_edges(
 graph.add_edge("synthesis_node", END)
 
 app = graph.compile()
+app.get_graph().draw_mermaid_png(output_file_path="iterative_search_llm.png")
