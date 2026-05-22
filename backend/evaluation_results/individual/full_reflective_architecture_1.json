@@ -1,0 +1,23 @@
+{
+    "architecture_name": "full_reflective_architecture",
+    "context_relevance": {
+        "score": 0,
+        "reason": "No context or sources provided to evaluate relevance."
+    },
+    "answer_relevance": {
+        "score": 0,
+        "reason": "The final answer is empty and does not address the user question."
+    },
+    "faithfulness_groundedness": {
+        "score": 0,
+        "reason": "The final answer is empty and lacks any supporting evidence or context."
+    },
+    "decomposition_quality": {
+        "score": 0,
+        "reason": "No subquestions provided for evaluation."
+    },
+    "reflection_self_correction_quality": {
+        "score": 0,
+        "reason": "No reflection or self-correction process was performed."
+    }
+}

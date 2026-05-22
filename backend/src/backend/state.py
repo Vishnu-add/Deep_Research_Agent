@@ -20,6 +20,26 @@ class ResearchState(TypedDict):
     session_folder: str
     model: Optional[str]
 
+    next_node: Annotated[list, operator.add]
+    prev_node: Annotated[list, operator.add]
+    info_to_planner: Optional[Dict[str, Any]]
+    tools_needed: list
+    web_search_queries : list
+    scientific_search_queries : list
+    wiki_search_queries : list
+
+    web_search_all_sources : list
+    new_web_search_sources : list
+
+    scientific_search_all_sources : list
+    new_scientific_search_sources : list
+
+    wikipedia_search_all_sources : list
+    new_wikipedia_search_sources : list
+    loop_node: str
+    direct_answer: str
+
+
 # class ResearchState(TypedDict):
 #     question: str
 #     sub_questions: List[str]

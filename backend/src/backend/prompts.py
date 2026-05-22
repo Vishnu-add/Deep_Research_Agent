@@ -50,45 +50,125 @@ Existing Sub-questions:
 # ============================================================
 
 SOURCE_VALIDATION_PROMPT = """
-You are an evidence validation agent.
-Evaluate the relevance and reliability of the provided sources for the research question.
+You are an evidence extraction and validation agent.
+
+Your task is to analyze the provided sources and extract factual claims that are supported by each source in relation to the research question.
 
 ### Instructions:
-1. Assess the relevance of each source to the research question and whether it provides useful information to answer the research question.
-2. Evaluate the reliability of each source based on its credibility and authority.
-3. Provide a justification for each evaluation.
+1. Read the research question carefully.
+2. Analyze each source independently.
+3. Extract only claims that are directly supported or strongly implied by the source.
+4. A source may:
+   - support multiple claims,
+   - support a single claim,
+   - or support no useful claims.
+5. For each extracted claim:
+   - assign a confidence score (1–10) indicating how confidently the source supports the claim with respect to the research question.
+   - higher score = stronger relevance + stronger evidence support.
+6. Do NOT hallucinate claims that are not supported by the source.
+7. Keep claims concise, factual, and evidence-oriented.
+8. If no meaningful claims can be inferred from a source, return an empty claims list for that source.
 """
 
 USER_VALIDATION_PROMPT = """
-Research Question: {question}
-Sources: {srcs}
+Research Question:
+{question}
+
+Sources:
+{srcs}
 """
 
-# ===========================================================
+SOURCE_VALIDATION_PROMPT_ITER2 = """
+You are an evidence extraction and validation agent.
+
+Your task is to analyze the provided sources and extract factual claims that are supported by each source in relation to the research question.
+
+### Instructions:
+1. Read the research question carefully.
+2. Analyze each source independently.
+3. Extract only claims that are directly supported or strongly implied by the source.
+4. A source may:
+   - support multiple claims,
+   - support a single claim,
+   - or support no useful claims.
+5. For each extracted claim:
+   - assign a confidence score (1–10) indicating how confidently the source supports the claim with respect to the research question.
+   - higher score = stronger relevance + stronger evidence support.
+6. Do NOT hallucinate claims that are not supported by the source.
+7. Keep claims concise, factual, and evidence-oriented.
+8. If no meaningful claims can be inferred from a source, return an empty claims list for that source.
+9. Use additional instructions to generate claims
+"""
+
+USER_VALIDATION_PROMPT_ITER2 = """
+Research Question:
+{question}
+
+Sources:
+{srcs}
+
+Additional Instruction:
+{instructions}
+"""
+
+# OLD ===========================================================
+# REFLECTION_PROMPT = """
+# You are a reflection agent.
+# Analyze the query, research plan, and validated sources to determine if more information is needed and conduct the research again.
+# Analyze:
+# - Whether the validated sources provide enough information to answer the research question
+# - Weak coverage
+# - Missing comparisons
+# - Missing benchmarks
+
+# Decide if:
+# - We have enough information to answer
+# - We need more retrieval
+# - We need to refine our approach
+
+# If more retrieval needed, suggest specific instructions to get the sub-questions.
+# Not all the queries need deeper insights, some of them can be more straightforward. So you have to analyze the question and the validated sources to determine if more information is needed or not.
+# """
+
+# USER_REFLECTION_PROMPT = """
+# Query:
+# {query}
+# Research Plan to get the information needed to answer the query:
+# {plan}
+# Validated Sources with sub-questions:
+# {validated_sources}
+# """
+
+# ===============================================================
+
 REFLECTION_PROMPT = """
 You are a reflection agent.
-Analyze the query, research plan, and validated sources to determine if more information is needed and conduct the research again.
-Analyze:
-- Whether the validated sources provide enough information to answer the research question
-- Weak coverage
-- Missing comparisons
-- Missing benchmarks
 
-Decide if:
-- We have enough information to answer
-- We need more retrieval
-- We need to refine our approach
+IMPORTANT:
+Return ONLY actual field values in the tool call.
+Do NOT return schema definitions.
+Do NOT return field descriptions.
+Do NOT return types.
 
-If more retrieval needed, suggest specific instructions to get the sub-questions.
-Not all the queries need deeper insights, some of them can be more straightforward. So you have to analyze the question and the validated sources to determine if more information is needed or not.
+You must populate:
+- next_node
+- reasoning
+- instructions
+
+Choose:
+- validation_node -> when claims are poor or irrelevant
+- decomposer_node -> when claims are good but more information is needed
 """
+
 
 USER_REFLECTION_PROMPT = """
 Query:
 {query}
-Research Plan to get the information needed to answer the query:
+
+Research Plan:
 {plan}
-Validated Sources with sub-questions:
+
+Validated Source Claims:
 {validated_sources}
 """
 

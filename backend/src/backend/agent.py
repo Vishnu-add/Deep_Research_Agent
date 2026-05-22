@@ -19,6 +19,8 @@ from src.backend.prompts import (
     USER_DECOMPOSER_PROMPT_ITER_2,
     SOURCE_VALIDATION_PROMPT,
     USER_VALIDATION_PROMPT,
+    SOURCE_VALIDATION_PROMPT_ITER2,
+    USER_VALIDATION_PROMPT_ITER2,
     REFLECTION_PROMPT,
     USER_REFLECTION_PROMPT,
     SYNTHESIS_PROMPT
@@ -95,7 +97,7 @@ class DeepResearchAgent:
             model=MODEL_NAME,
             temperature=TEMPERATURE
         )
-        # self.llm = 
+        self.name = "full_reflective_architecture"
 
         self.writer = None
 
@@ -196,6 +198,52 @@ class DeepResearchAgent:
         workflow = graph.compile(checkpointer=checkpointer)
 
         return workflow
+
+    def pre_planner_node(self, state: ResearchState):
+        """Pre-processing before the planner node. To decide the research_required or not, reasoning depth, tools needed"""
+        logger.info(f"=== PRE-PLANNER NODE {state['loop_count']} ===")
+        #logger.info(f"Current state:{state}")
+        self.writer = get_stream_writer()
+        self.writer({"status": "Starting the research process..."})
+
+        messages = [
+            SystemMessage(content=PRE_PLANNER_PROMPT),
+            HumanMessage(content=state["query"]),
+        ]
+
+        llm_tool = self.llm.bind_tools([PRE_PLANNER_TOOL], tool_choice="required")
+        # self.writer({"status": "Invoking the planner agent..."})
+        logger.info(f"Invoking pre-planner agent")
+        response = llm_tool.invoke(messages)
+
+        tool_response = response.tool_calls[0].get("args", {})
+        research_required = tool_response.get("research_required", False)
+        reasoning_depth = tool_response.get("reasoning_depth", "medium")
+        tools_needed = tool_response.get("tools_needed", [])
+
+        try:
+            if research_required:
+                state["prev_node"] = ["pre_planner_node"]
+                state["next_node"] = ["planner_node"]
+                state["info_to_planner"] = {
+                    "research_required": research_required,
+                    "reasoning_depth": reasoning_depth,
+                    "tools_needed": tools_needed
+                }
+                state["tools_needed"] = tools_needed
+            else:
+                state["prev_node"] = ["pre_planner_node"]
+                state["next_node"] = ["synthesis_node"]
+                state["direct_answer"] = "True"
+        except Exception as e:
+            logger.info(f"Error parsing pre-planner response: {e}")
+            state["prev_node"] = ["pre_planner_node"]
+            state["next_node"] = ["planner_node"]
+        state["all_messages"] = state["all_messages"] + messages + [response]
+
+        self.writer({"status": "pre-planning completed."})
+
+        return state
     
     def planner_node(self, state: ResearchState):
         """
@@ -346,8 +394,72 @@ class DeepResearchAgent:
             "sources": state["sources"] + all_sources,
             "new_sources": all_sources,
         }
-    
-    
+
+    def wikipedia_search_tool_node(self, state: ResearchState):
+        """Executes the search for each subquery and retrieves relevant sources from Wikipedia."""
+        if not state.get("new_subqueries",{}).get(WIKI_SEARCH_TOOL_NAME,[]):
+            logger.info(f"=== No WIKI questions skippoing Tool call =====")
+            return {
+                "wikipedia_search_all_sources": state.get("wikipedia_search_all_sources",[]),
+                "new_wikipedia_search_sources": [],
+                "prev_node": ["wiki_search_node"],
+                "next_node": ["validation_node"]
+            }
+        self.writer = get_stream_writer()
+        self.writer({"status": random.choice(WIKI_SEARCH_MESSAGES)})
+        logger.info(f"=== WIKI SEARCH NODE {state['loop_count']} ===")
+        #logger.info(f"Current state:{state}")
+
+        wikipedia_search_all_sources = []
+
+        counter = 0
+
+        for q in state["new_subqueries"].get(WIKI_SEARCH_TOOL_NAME,[]):
+            results = []
+            try:
+                for term in wp.search(q, results = 10):
+                    try:
+                        # print("Searching")
+                        page = wp.page(term, auto_suggest=False)
+                        results.append({
+                            "page_content": page.summary,
+                            "type": "Document",
+                            "metadata": {"url": page.url}
+                        })
+                    except wp.DisambiguationError:
+                        logger.info(f"Error during WIKI page : {e}")
+                        pass
+                    if len(results) >= 2:
+                        break
+            except Exception as e:
+                logger.info(f"Error during WIKI search : {e}")
+                results = [{ "error": str(e) }]
+
+            wikipedia_search_all_sources.append({
+                "question": q,
+                "source_id": f"{state['loop_count']}_{counter}-{WIKI_SEARCH_TOOL_NAME}",
+                "sources": "\n\n".join([doc.get("page_content","") for doc in results]),
+                "from_tool": WIKI_SEARCH_TOOL_NAME
+            })
+            counter += 1
+
+        # state["sources"] = all_sources
+
+        session_folder = state["session_folder"]        
+
+        filename = f"{session_folder}/A5_raw_{WIKI_SEARCH_TOOL_NAME}_sources.json"
+        save_json(
+            filename,
+            wikipedia_search_all_sources
+        )
+
+        return {
+            "wikipedia_search_all_sources": state.get("wikipedia_search_all_sources",[]) + wikipedia_search_all_sources,
+            "new_wikipedia_search_sources": wikipedia_search_all_sources,
+            "prev_node": ["wiki_search_node"],
+            "next_node": ["validation_node"]
+        }
+
     def validation_node(self, state: ResearchState):
         """Validates the relevance of retrieved sources and filters them based on a relevance threshold."""
 
@@ -364,10 +476,42 @@ class DeepResearchAgent:
         if len(state["new_sources"]) > 5:
             state["new_sources"] = state["new_sources"][:5]
 
-        messages = [
-            SystemMessage(content=SOURCE_VALIDATION_PROMPT),
-            HumanMessage(content=USER_VALIDATION_PROMPT.format(srcs=state["new_sources"], question=state["query"]))
-        ]
+        all_sources = []
+        if len(web_search_sources) > 2 : 
+            logger.info(f"Web Search Sources exists, adding them.")
+            all_sources.append(web_search_sources[:2])
+        else:
+            logger.info(f"Web Search Sources does not exists")
+            all_sources.append(web_search_sources)
+ 
+        if len(scientific_search_sources) > 2:
+            logger.info(f"Scientic Search Sources exists, adding them.")
+            all_sources.append(scientific_search_sources[:2])
+        else:
+            logger.info(f"Scientic Search Sources does not exists")
+            all_sources.append(scientific_search_sources)
+ 
+        if len(wikipedia_search_sources) > 2:
+            logger.info(f"Wikipedia Search Sources exists, adding them.")
+            all_sources.append(wikipedia_search_sources[:2])
+        else:
+            logger.info(f"Wikipedia Search Sources does not exists")
+            all_sources.append(wikipedia_search_sources)
+        
+        if state["loop_count"] > 1 and state.get("loop_node","")=="validation_node":
+            logger.info(f"Using instructions from reflection to guide claim validation : {state['instructions']}")
+            messages = [
+                SystemMessage(content=SOURCE_VALIDATION_PROMPT_ITER2),
+                HumanMessage(content=USER_VALIDATION_PROMPT_ITER2.format(srcs=all_sources, question=state["query"], instructions=state["instructions"]))
+            ]
+            llm_tool = self.llm.bind_tools([SOURCE_VALIDATION_TOOL_ITER2], tool_choice="required")
+        else:             
+            logger.info(f"Using initial decomposition without reflection instructions.")
+            messages = [
+                SystemMessage(content=SOURCE_VALIDATION_PROMPT),
+                HumanMessage(content=USER_VALIDATION_PROMPT.format(srcs=all_sources, question=state["query"]))
+            ]
+            llm_tool = self.llm.bind_tools([SOURCE_VALIDATION_TOOL], tool_choice="required")
         response = None
         for i in range(3):
             response = llm_tool.invoke(messages)
@@ -390,27 +534,15 @@ class DeepResearchAgent:
                 "new_validated_sources": state["sources"]
             }
 
-        parsed = response.tool_calls[0].get("args", {}).get("questions_with_scores", [])
-
+        parsed = response.tool_calls[0].get("args", {}).get("claims", [])
         # logger.info(f"Parsed validation:{parsed}")
 
-        filtered_question_ids = []
         filtered_sources = []
 
         for item in parsed:
-            # Smaller models occasionally return malformed entries; skip anything
-            # that is not a dict with the expected fields.
-            if not isinstance(item, dict):
-                continue
-            score = item.get("score")
-            if isinstance(score, (int, float)) and score >= RELEVANCE_THRESHOLD:
-                filtered_question_ids.append(item.get("question_id"))
-
-        for src in state["new_sources"]:
-            if src["question_id"] in filtered_question_ids:
-                filtered_sources.append(src)
-
-        # state["validated_sources"] = filtered_sources
+            if item.get("confidence_score", 0) > RELEVANCE_THRESHOLD:
+                item.pop("confidence_score", 0)
+                filtered_sources.append(item)
 
         session_folder = state["session_folder"]        
 
@@ -443,7 +575,7 @@ class DeepResearchAgent:
 
         messages = [
             SystemMessage(content=REFLECTION_PROMPT),
-            HumanMessage(content=USER_REFLECTION_PROMPT.format(query=state["query"], plan=state["plan"], validated_sources=state["new_validated_sources"]))
+            HumanMessage(content=USER_REFLECTION_PROMPT.format(query=state["query"], plan=state["plan"], validated_sources=state.get("new_validated_sources",[])))
         ]
 
         response = None
@@ -481,6 +613,8 @@ class DeepResearchAgent:
             "instructions"
         ]
 
+        state["loop_node"] = parsed.get("next_node")
+
         state["loop_count"] += 1
 
         state["all_messages"] = state["all_messages"] + messages + [response]
@@ -501,14 +635,29 @@ class DeepResearchAgent:
         {query}
         Validated Sources:
         {validated_sources}
+        Conversation History:
+        {conversation_history}
         """
+        USER_PROMPT_SIMPLE = """
+        Question:
+        {query}
+        Conversation History:
+        {conversation_history}
+        """
+        # if state["prev_node"] and state["prev_node"][0] == "pre_planner_node":
+        if state.get("direct_answer","False") == "True":
+            USER_PROMPT = USER_PROMPT_SIMPLE
+            SYNTHESIS_PROMPT = SYNTHESIS_PROMPT_SIMPLE
+        else:
+            USER_PROMPT = USER_PROMPT_RESEARCH
+            SYNTHESIS_PROMPT = SYNTHESIS_PROMPT_RESEARCH
         logger.info(f"=== SYNTHESIS NODE {state['loop_count']} ===")
         #logger.info(f"Current state:{state}")
         self.writer = get_stream_writer()
         self.writer({"status": random.choice(SYNTHESIS_MESSAGES)})
         messages = [
             SystemMessage(content=SYNTHESIS_PROMPT),
-            HumanMessage(content=USER_PROMPT.format(query=state["query"], validated_sources=state["validated_sources"]))
+            HumanMessage(content=USER_PROMPT.format(query=state["query"], validated_sources=state["validated_sources"], conversation_history=state["messages"]))
         ]
         response = self._llm(state).invoke(messages)
 
@@ -530,6 +679,7 @@ class DeepResearchAgent:
 
         
     def router(self, state: ResearchState) -> Literal[
+        "validation_node",
         "decomposer_node",
         "synthesis_node"
     ]:
@@ -540,10 +690,13 @@ class DeepResearchAgent:
         if state["loop_count"] >= MAX_LOOPS+1:
             self.writer({"status": "Maximum loop count reached. Proceeding to synthesis."})
             return "synthesis_node"
-
-        if state["reflection"].get("info_needed", False):
+        if state.get("loop_node","") == "decomposer_node":
             self.writer({"status": "More information needed. Looping back to decomposer."})
             return "decomposer_node"
+        elif state.get("loop_node","") == "validation_node":
+            self.writer({"status": "Claims not retrieved properly. Looping back to validation."})
+            return "validation_node"
+
 
         self.writer({"status": "No more information needed. Proceeding to synthesis."})
         return "synthesis_node"
