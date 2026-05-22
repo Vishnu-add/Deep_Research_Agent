@@ -300,11 +300,11 @@ async def evaluate_agent(
     logger.info(f"Evaluation output : {evaluation_result}")
 
     ## write code to save json
-    os.makedirs("evaluation_results/individual", exist_ok=True)
+    os.makedirs(f"evaluation_results/{session_id}", exist_ok=True)
 
     filename = (
-        f"evaluation_results/individual/"
-        f"{architecture_name}_{session_id}.json"
+        f"evaluation_results/{session_id}/"
+        f"{architecture_name}.json"
     )
 
     with open(filename, "w", encoding="utf-8") as f:
