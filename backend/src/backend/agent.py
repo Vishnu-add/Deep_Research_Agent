@@ -134,7 +134,7 @@ class DeepResearchAgent:
         """Build a ChatOllama for this run, using the model picked by the caller
         (state['model']) or falling back to MODEL_NAME."""
         name = state.get("model") or MODEL_NAME
-        return ChatOllama(model=name, temperature=TEMPERATURE)
+        return ChatOllama(model=name, temperature=TEMPERATURE, reasoning=False)
 
 
     def _build_workflow(self) -> StateGraph:
@@ -714,8 +714,8 @@ class DeepResearchAgent:
         if response is None or response.tool_calls is None or len(response.tool_calls) == 0:
             logger.info(f"No response received after multiple attempts.")
             return {
-                "validated_sources": state["sources"],
-                "new_validated_sources": state["sources"]
+                "validated_sources": all_sources,
+                "new_validated_sources": all_sources
             }
 
         parsed = response.tool_calls[0].get("args", {}).get("claims", [])

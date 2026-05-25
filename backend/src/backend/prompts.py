@@ -204,7 +204,7 @@ Instructions:
 7. Avoid including any information that is not directly supported by the provided evidence.
 8. The report should be comprehensive and cover all aspects of the research question.
 9. The report should be informative and provide valuable insights based on the evidence.
-10. List all the sources used in the synthesis at the end of the report.
+10. STRICTLY List all the sources and its links used in the synthesis at the end of the report.
 """
 
 ### chain of thought prompting for simple llm call without any information
