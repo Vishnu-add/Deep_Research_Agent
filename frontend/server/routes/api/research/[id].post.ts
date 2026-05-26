@@ -113,12 +113,14 @@ export default defineHandler(async (event) => {
       let rOpen = false, tOpen = false
       writer.write({ type: 'start' })
       if (titleP) titleP.then(t => { try { writer.write({ type: 'data-chat-title', data: { message: t }, transient: true }) } catch {} }).catch(() => {})
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 20 * 60 * 1000)
       try {
         const res = await fetch(BACKEND_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ question: q, max_iterations: MAX_ITER, session_id: sid, model }),
-          signal: event.req.signal
+          signal: controller.signal
         })
         if (!res.ok || !res.body) throw new Error(`Backend ${res.status}`)
         const reader = res.body.getReader()
@@ -165,9 +167,11 @@ export default defineHandler(async (event) => {
             } catch {}
           }
         }
+        clearTimeout(timeout)
         if (rOpen) { writer.write({ type: 'reasoning-end', id: rid }); rOpen = false }
         if (tOpen) { writer.write({ type: 'text-end', id: tid }); tOpen = false }
       } catch (e: unknown) {
+        clearTimeout(timeout)
         if (rOpen) { writer.write({ type: 'reasoning-end', id: rid }); rOpen = false }
         if (!tOpen) { writer.write({ type: 'text-start', id: tid }); tOpen = true }
         const msg = e instanceof Error ? e.message : 'stream failed'

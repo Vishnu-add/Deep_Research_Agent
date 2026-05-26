@@ -416,7 +416,7 @@ class DeepResearchAgent:
             self.writer({"status": "Decomposition completed."})
             return {
                 "subqueries": state["subqueries"],
-                "new_subqueries": [],
+                "new_subqueries": {},
             }
         # logger.info(f"Decomposition response:{response.tool_calls}")
 
@@ -795,9 +795,7 @@ class DeepResearchAgent:
 
         state["reflection"] = parsed
 
-        state["instructions"] = parsed[
-            "instructions"
-        ]
+        state["instructions"] = parsed.get("instructions", "")
 
         state["loop_node"] = parsed.get("next_node")
 
@@ -915,7 +913,7 @@ class DeepResearchAgent:
             all_messages=[HumanMessage(content=question)],
             plan="",
             instructions="",
-            subqueries=[],
+            subqueries={},
             sources=[],
             validated_sources=[],
             reflection={},

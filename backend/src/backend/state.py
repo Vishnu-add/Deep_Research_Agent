@@ -8,8 +8,8 @@ class ResearchState(TypedDict):
     all_messages: list
     plan : str
     instructions: str
-    subqueries: list
-    new_subqueries: list
+    subqueries: dict
+    new_subqueries: dict
     sources: dict
     new_sources: list
     validated_sources: list
